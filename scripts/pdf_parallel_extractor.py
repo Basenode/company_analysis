@@ -35,6 +35,15 @@ try:
 except ImportError:
     raise ImportError("pdfplumber is required. Install with: pip install pdfplumber")
 
+_logger = logging.getLogger(__name__)
+
+try:
+    import fitz
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+    _logger.warning("PyMuPDF not installed. Install with: pip install pymupdf for faster extraction")
+
 _PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts"))
 
@@ -60,8 +69,6 @@ try:
     _config_available = True
 except ImportError:
     _config_available = False
-
-_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -162,37 +169,37 @@ def _tables_to_markdown(tables: list) -> str:
     return "\n\n".join(parts)
 
 
-def extract_all_pages(pdf_path: str, max_pages: Optional[int] = None) -> Tuple[Dict[int, str], Dict[int, list], float, bool]:
-    """Extract text and tables from all PDF pages."""
+def extract_all_pages(pdf_path: str, max_pages: Optional[int] = None, extract_tables: bool = False, show_progress: bool = True) -> Tuple[Dict[int, str], Dict[int, list], float, bool]:
+    """Extract text and tables from all PDF pages.
+    
+    Args:
+        pdf_path: Path to PDF file
+        max_pages: Maximum pages to extract (None for all)
+        extract_tables: Whether to extract tables (slower)
+        show_progress: Whether to show progress
+    
+    Returns:
+        Tuple of (page_texts, page_tables, garbled_ratio, used_fallback)
+    """
     page_texts: Dict[int, str] = {}
     page_tables: Dict[int, list] = {}
     garbled_pages = 0
     total_pages = 0
-    
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            total_pages = len(pdf.pages)
-            process_pages = min(total_pages, max_pages) if max_pages else total_pages
-            
-            for page_num in range(process_pages):
-                page = pdf.pages[page_num]
-                text = page.extract_text() or ""
-                tables = page.extract_tables()
-                
-                page_texts[page_num] = text
-                page_tables[page_num] = tables
-                
-                if is_garbled(text):
-                    garbled_pages += 1
-    
-    except Exception as e:
-        _logger.error(f"PDF extraction error: {e}")
-        return {}, {}, 1.0, False
-    
-    garbled_ratio = garbled_pages / total_pages if total_pages > 0 else 0.0
     used_fallback = False
     
-    if garbled_ratio > GARBLED_PAGE_RATIO:
+    if PYMUPDF_AVAILABLE:
+        page_texts, page_tables, garbled_pages, total_pages = _extract_with_pymupdf(
+            pdf_path, max_pages, extract_tables, show_progress
+        )
+        used_fallback = False
+    else:
+        page_texts, page_tables, garbled_pages, total_pages = _extract_with_pdfplumber(
+            pdf_path, max_pages, extract_tables, show_progress
+        )
+    
+    garbled_ratio = garbled_pages / total_pages if total_pages > 0 else 0.0
+    
+    if garbled_ratio > GARBLED_PAGE_RATIO and not PYMUPDF_AVAILABLE:
         fallback_text = _fallback_extract_pymupdf(pdf_path)
         if fallback_text:
             lines = fallback_text.split("=== PAGE")
@@ -203,6 +210,116 @@ def extract_all_pages(pdf_path: str, max_pages: Optional[int] = None) -> Tuple[D
             garbled_ratio = 0.0
     
     return page_texts, page_tables, garbled_ratio, used_fallback
+
+
+def _extract_with_pymupdf(
+    pdf_path: str, 
+    max_pages: Optional[int], 
+    extract_tables: bool,
+    show_progress: bool
+) -> Tuple[Dict[int, str], Dict[int, list], int, int]:
+    """Extract pages using PyMuPDF (faster)."""
+    page_texts: Dict[int, str] = {}
+    page_tables: Dict[int, list] = {}
+    garbled_pages = 0
+    
+    doc = fitz.open(pdf_path)
+    total_pages = len(doc)
+    process_pages = min(total_pages, max_pages) if max_pages else total_pages
+    
+    if show_progress:
+        print(f"  [PyMuPDF] Extracting {process_pages} pages (tables={extract_tables})...")
+    
+    start_time = time.time()
+    
+    for page_num in range(process_pages):
+        page = doc.load_page(page_num)
+        text = page.get_text()
+        page_texts[page_num] = text
+        
+        if extract_tables:
+            try:
+                tabs = page.find_tables()
+                if tabs and hasattr(tabs, 'tables'):
+                    tables = []
+                    for t in tabs.tables:
+                        try:
+                            table_data = t.extract()
+                            if table_data:
+                                tables.append(table_data)
+                        except Exception:
+                            pass
+                    page_tables[page_num] = tables
+                else:
+                    page_tables[page_num] = []
+            except Exception:
+                page_tables[page_num] = []
+        else:
+            page_tables[page_num] = []
+        
+        if is_garbled(text):
+            garbled_pages += 1
+        
+        if show_progress and (page_num + 1) % 50 == 0:
+            elapsed = time.time() - start_time
+            pages_per_sec = (page_num + 1) / elapsed if elapsed > 0 else 0
+            remaining = (process_pages - page_num - 1) / pages_per_sec if pages_per_sec > 0 else 0
+            print(f"  Progress: {page_num + 1}/{process_pages} pages ({pages_per_sec:.1f} pages/s, ETA: {remaining:.0f}s)")
+    
+    doc.close()
+    
+    if show_progress:
+        elapsed = time.time() - start_time
+        print(f"  [PyMuPDF] Done: {process_pages} pages in {elapsed:.1f}s ({process_pages/elapsed:.1f} pages/s)")
+    
+    return page_texts, page_tables, garbled_pages, total_pages
+
+
+def _extract_with_pdfplumber(
+    pdf_path: str,
+    max_pages: Optional[int],
+    extract_tables: bool,
+    show_progress: bool
+) -> Tuple[Dict[int, str], Dict[int, list], int, int]:
+    """Extract pages using pdfplumber (slower but more accurate for tables)."""
+    page_texts: Dict[int, str] = {}
+    page_tables: Dict[int, list] = {}
+    garbled_pages = 0
+    
+    with pdfplumber.open(pdf_path) as pdf:
+        total_pages = len(pdf.pages)
+        process_pages = min(total_pages, max_pages) if max_pages else total_pages
+        
+        if show_progress:
+            print(f"  [pdfplumber] Extracting {process_pages} pages (tables={extract_tables})...")
+        
+        start_time = time.time()
+        
+        for page_num in range(process_pages):
+            page = pdf.pages[page_num]
+            text = page.extract_text() or ""
+            page_texts[page_num] = text
+            
+            if extract_tables:
+                tables = page.extract_tables()
+                page_tables[page_num] = tables if tables else []
+            else:
+                page_tables[page_num] = []
+            
+            if is_garbled(text):
+                garbled_pages += 1
+            
+            if show_progress and (page_num + 1) % 50 == 0:
+                elapsed = time.time() - start_time
+                pages_per_sec = (page_num + 1) / elapsed if elapsed > 0 else 0
+                remaining = (process_pages - page_num - 1) / pages_per_sec if pages_per_sec > 0 else 0
+                print(f"  Progress: {page_num + 1}/{process_pages} pages ({pages_per_sec:.1f} pages/s, ETA: {remaining:.0f}s)")
+        
+        if show_progress:
+            elapsed = time.time() - start_time
+            print(f"  [pdfplumber] Done: {process_pages} pages in {elapsed:.1f}s ({process_pages/elapsed:.1f} pages/s)")
+    
+    return page_texts, page_tables, garbled_pages, total_pages
 
 
 def _fallback_extract_pymupdf(pdf_path: str) -> Optional[str]:
@@ -517,11 +634,15 @@ class ParallelPDFExtractor:
         timeout_sec: int = 600,
         use_cache: bool = True,
         large_file_threshold_mb: float = 100.0,
+        extract_tables: bool = True,
+        show_progress: bool = True,
     ):
         self.max_workers = max_workers
         self.timeout_sec = timeout_sec
         self.use_cache = use_cache
         self.large_file_threshold_mb = large_file_threshold_mb
+        self.extract_tables = extract_tables
+        self.show_progress = show_progress
         
         if _config_available:
             try:
@@ -599,7 +720,21 @@ class ParallelPDFExtractor:
             file_size_mb = os.path.getsize(pdf_path) / (1024 * 1024)
             _logger.warning(f"Large PDF detected ({file_size_mb:.1f}MB), extraction may take longer")
         
-        page_texts, page_tables, garbled_ratio, used_fallback = extract_all_pages(pdf_path)
+        print(f"\n{'='*50}")
+        print(f"PDF Extraction Starting")
+        print(f"{'='*50}")
+        print(f"  File: {os.path.basename(pdf_path)}")
+        print(f"  Size: {os.path.getsize(pdf_path) / (1024 * 1024):.1f} MB")
+        print(f"  Engine: {'PyMuPDF (fast)' if PYMUPDF_AVAILABLE else 'pdfplumber'}")
+        print(f"  Extract tables: {self.extract_tables}")
+        print(f"  Workers: {self.max_workers}")
+        print()
+        
+        page_texts, page_tables, garbled_ratio, used_fallback = extract_all_pages(
+            pdf_path, 
+            extract_tables=self.extract_tables,
+            show_progress=self.show_progress
+        )
         total_pages = len(page_texts)
         
         if total_pages == 0:
@@ -824,6 +959,9 @@ def main():
     parser.add_argument('--workers', type=int, default=4, help='Number of parallel workers')
     parser.add_argument('--timeout', type=int, default=600, help='Timeout in seconds')
     parser.add_argument('--force', action='store_true', help='Force re-extraction')
+    parser.add_argument('--tables', action='store_true', default=True, help='Extract tables (default: True)')
+    parser.add_argument('--no-tables', action='store_true', help='Skip table extraction (faster)')
+    parser.add_argument('--no-progress', action='store_true', help='Hide progress display')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
     
     args = parser.parse_args()
@@ -836,6 +974,8 @@ def main():
     extractor = ParallelPDFExtractor(
         max_workers=args.workers,
         timeout_sec=args.timeout,
+        extract_tables=not args.no_tables,
+        show_progress=not args.no_progress,
     )
     
     result = extractor.extract(

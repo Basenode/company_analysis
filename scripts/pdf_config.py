@@ -25,6 +25,26 @@ SECTION_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
         "exclude": ["主营业务", "经营情况", "行业分析", "未来规划", "财务报表项目注释"],
         "mandatory": ["审计意见", "关键审计事项", "会计师事务所"]
     },
+    "AUDIT_OPINION": {
+        "include": ["审计意见", "关键审计事项", "审计报告日期", "审计机构", "强调事项段", "其他信息段", "持续经营能力", "审计应对程序", "标准无保留意见", "保留意见", "否定意见", "无法表示意见"],
+        "exclude": ["主营业务", "经营情况", "行业分析", "未来规划", "财务报表项目注释"],
+        "mandatory": ["审计意见", "关键审计事项"]
+    },
+    "ACCOUNTING_POLICY": {
+        "include": ["会计政策变更", "会计估计变更", "重要会计政策", "重要会计估计", "会计政策一致性", "收入确认政策", "坏账计提政策", "存货跌价政策", "固定资产折旧政策", "研发资本化政策", "前期差错更正", "追溯调整"],
+        "exclude": ["主营业务明细", "营业收入", "营业成本", "产能产量", "行业分析", "客户", "供应商"],
+        "mandatory": ["会计政策变更", "会计估计变更", "重要会计政策", "前期差错更正"]
+    },
+    "P1": {
+        "include": ["审计意见类型", "审计机构名称", "审计费用", "连续审计年限", "审计报告日期", "关键审计事项", "强调事项段", "其他信息段", "审计机构类型", "独立性风险"],
+        "exclude": ["主营业务", "经营情况", "行业分析", "未来规划", "财务报表项目注释"],
+        "mandatory": ["审计意见类型", "审计机构", "关键审计事项"]
+    },
+    "P9": {
+        "include": ["会计政策变更情况", "会计估计变更情况", "前期会计差错更正", "坏账计提比例", "存货跌价计提比例", "固定资产折旧年限", "研发资本化比例", "收入确认方法", "会计政策行业对标"],
+        "exclude": ["主营业务明细", "营业收入", "营业成本", "产能产量", "行业分析", "客户", "供应商"],
+        "mandatory": ["会计政策变更", "会计估计变更", "前期差错更正", "坏账计提比例"]
+    },
     "BIZ_OVERVIEW": {
         "include": ["公司业务概要", "主营业务与产品", "主要产品及用途", "经营模式", "行业地位", "核心竞争力", "行业发展阶段", "主要业务", "公司简介", "业务概要", "商业模式", "盈利模式"],
         "exclude": ["财务报表附注", "营业收入明细", "营业成本构成", "产能产量", "在建工程", "行业发展趋势", "风险因素"],
@@ -81,6 +101,11 @@ SECTION_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
         "exclude": ["主营业务", "营收", "成本", "行业分析", "经营情况", "未来规划"],
         "mandatory": ["受限资产", "所有权或使用权受限资产", "受限的货币资金"]
     },
+    "P3": {
+        "include": ["应收账款账龄", "应收账款按账龄", "应收账款坏账", "坏账准备", "应收账款余额", "应收账款明细", "账龄分析"],
+        "exclude": ["存货", "主营业务", "产能", "在建工程", "递延所得税", "预付账款"],
+        "mandatory": ["应收账款账龄", "坏账准备"]
+    },
     "P4": {
         "include": ["关联方交易", "关联交易", "关联方及关联交易", "关联方关系及其交易", "重大关联交易", "关联方资金往来", "关联担保", "关联方资金占用", "关联方往来", "關聯方交易", "關聯交易", "关联方清单"],
         "exclude": ["主营业务", "营收", "成本", "行业分析", "经营情况", "未来规划"],
@@ -90,6 +115,21 @@ SECTION_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
         "include": ["或有负债", "或有事项", "未决诉讼", "重大诉讼", "对外担保", "承诺及或有事项", "承诺和或有负债", "资本承诺", "或有負債", "或有事項", "担保情况"],
         "exclude": ["主营业务", "营收", "成本", "行业分析", "经营情况", "未来规划"],
         "mandatory": ["或有事项", "未决诉讼", "对外担保", "承诺事项"]
+    },
+    "P5": {
+        "include": ["前五名客户", "前五大客户", "主要客户", "客户集中度", "前五名供应商", "前五大供应商", "主要供应商", "供应商集中度", "客户销售额", "供应商采购额"],
+        "exclude": ["主营业务", "产能", "在建工程", "行业分析", "风险因素"],
+        "mandatory": ["前五名客户", "前五名供应商", "客户集中度"]
+    },
+    "P7": {
+        "include": ["成本结构", "成本构成", "营业成本构成", "原材料成本", "人工成本", "能源动力", "折旧摊销", "成本分析"],
+        "exclude": ["主营业务", "产能", "客户", "行业分析", "风险因素"],
+        "mandatory": ["成本结构", "成本构成", "营业成本构成"]
+    },
+    "P8": {
+        "include": ["营业收入分产品", "主营业务分产品", "分产品毛利率", "收入结构", "业务模式", "盈利模式", "收入构成"],
+        "exclude": ["产能", "产量", "在建工程", "风险因素", "未来规划"],
+        "mandatory": ["分产品营收", "分产品毛利率", "收入结构"]
     },
     "P13": {
         "include": ["非经常性损益项目及金额", "非经常性损益合计", "非经常性损益", "非经常性损益明细", "非经常性损益项目", "扣除非经常性损益", "非經常性損益", "非经常性损益对净利润的影响"],
@@ -132,6 +172,18 @@ SECTION_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
 # Section extraction configuration
 SECTION_EXTRACT_CONFIG: Dict[str, Dict[str, int]] = {
     "AUDIT": {"buffer_pages": 3, "max_chars": 8000},
+    "AUDIT_OPINION": {"buffer_pages": 3, "max_chars": 8000},
+    "ACCOUNTING_POLICY": {"buffer_pages": 4, "max_chars": 10000},
+    "P1": {"buffer_pages": 3, "max_chars": 8000},
+    "P2": {"buffer_pages": 2, "max_chars": 5000},
+    "P3": {"buffer_pages": 2, "max_chars": 6000},
+    "P4": {"buffer_pages": 2, "max_chars": 6000},
+    "P5": {"buffer_pages": 2, "max_chars": 5000},
+    "P6": {"buffer_pages": 2, "max_chars": 6000},
+    "P7": {"buffer_pages": 2, "max_chars": 6000},
+    "P8": {"buffer_pages": 3, "max_chars": 8000},
+    "P9": {"buffer_pages": 4, "max_chars": 10000},
+    "P13": {"buffer_pages": 2, "max_chars": 5000},
     "BIZ_OVERVIEW": {"buffer_pages": 3, "max_chars": 10000},
     "GLOSSARY": {"buffer_pages": 2, "max_chars": 5000},
     "IMPORTANT": {"buffer_pages": 4, "max_chars": 12000},
@@ -180,6 +232,18 @@ SECTION_TITLE_BINDING: Dict[str, List[str]] = {
 # Section zone preferences
 SECTION_ZONE_PREFERENCES: Dict[str, Dict[str, List[str]]] = {
     "AUDIT": {"prefer": ["FIN_ZONE"], "avoid": ["MDA_ZONE"]},
+    "AUDIT_OPINION": {"prefer": ["FIN_ZONE"], "avoid": ["MDA_ZONE"]},
+    "ACCOUNTING_POLICY": {"prefer": ["POLICY_ZONE", "FIN_ZONE"], "avoid": ["MDA_ZONE"]},
+    "P1": {"prefer": ["FIN_ZONE"], "avoid": ["MDA_ZONE"]},
+    "P2": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P3": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P4": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P5": {"prefer": ["NOTES_ZONE", "MDA_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P6": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P7": {"prefer": ["NOTES_ZONE", "MDA_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P8": {"prefer": ["NOTES_ZONE", "MDA_ZONE"], "avoid": ["POLICY_ZONE"]},
+    "P9": {"prefer": ["POLICY_ZONE", "FIN_ZONE"], "avoid": ["MDA_ZONE"]},
+    "P13": {"prefer": ["SUPPLEMENT_ZONE", "NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
     "BIZ_OVERVIEW": {"prefer": ["MDA_ZONE", "INTRO_ZONE"], "avoid": ["NOTES_ZONE"]},
     "GLOSSARY": {"prefer": ["INTRO_ZONE"], "avoid": ["NOTES_ZONE", "FIN_ZONE"]},
     "IMPORTANT": {"prefer": ["MDA_ZONE", "NOTES_ZONE"], "avoid": []},
@@ -190,10 +254,6 @@ SECTION_ZONE_PREFERENCES: Dict[str, Dict[str, List[str]]] = {
     "AR":  {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
     "DEBT": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
     "CIP": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
-    "P2":  {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
-    "P4":  {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
-    "P6":  {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
-    "P13": {"prefer": ["SUPPLEMENT_ZONE", "NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
     "MDA_INDUSTRY": {"prefer": ["MDA_ZONE"], "avoid": []},
     "MDA_OPERATION": {"prefer": ["MDA_ZONE"], "avoid": []},
     "MDA_OUTLOOK": {"prefer": ["MDA_ZONE"], "avoid": []},
@@ -205,6 +265,18 @@ SECTION_ZONE_PREFERENCES: Dict[str, Dict[str, List[str]]] = {
 # Section order for output
 SECTION_ORDER = [
     "AUDIT",
+    "AUDIT_OPINION",
+    "ACCOUNTING_POLICY",
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "P9",
+    "P13",
     "BIZ_OVERVIEW",
     "GLOSSARY",
     "IMPORTANT",
@@ -215,10 +287,6 @@ SECTION_ORDER = [
     "AR",
     "DEBT",
     "CIP",
-    "P2",
-    "P4",
-    "P6",
-    "P13",
     "MDA_INDUSTRY",
     "MDA_OPERATION",
     "MDA_OUTLOOK",
@@ -229,14 +297,27 @@ SECTION_ORDER = [
 
 # Module extraction priority
 EXTRACT_PRIORITY = [
-    "AUDIT", "BIZ_OVERVIEW", "BIZ", "CAP", "CUS", "INV", "AR", "DEBT", "CIP",
+    "AUDIT", "AUDIT_OPINION", "ACCOUNTING_POLICY", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P13",
+    "BIZ_OVERVIEW", "BIZ", "CAP", "CUS", "INV", "AR", "DEBT", "CIP",
     "MDA_INDUSTRY", "MDA_OPERATION", "MDA_OUTLOOK", "MDA_RISK",
-    "P2", "P4", "P6", "P13", "SUB", "IMPORTANT", "GLOSSARY", "INDUSTRY_EXTRA"
+    "SUB", "IMPORTANT", "GLOSSARY", "INDUSTRY_EXTRA"
 ]
 
 # TOC hints mapping
 TOC_HINTS = {
     "AUDIT": ["审计报告"],
+    "AUDIT_OPINION": ["审计意见", "关键审计事项"],
+    "ACCOUNTING_POLICY": ["会计政策", "会计估计", "重要会计政策"],
+    "P1": ["审计意见核查", "审计意见类型"],
+    "P2": ["合并财务报表项目注释", "受限资产"],
+    "P3": ["合并财务报表项目注释", "应收账款账龄"],
+    "P4": ["关联方及关联交易"],
+    "P5": ["主要客户", "主要供应商"],
+    "P6": ["或有事项"],
+    "P7": ["成本结构", "成本分析"],
+    "P8": ["收入结构", "业务模式"],
+    "P9": ["会计政策一致性", "会计政策变更"],
+    "P13": ["非经常性损益"],
     "BIZ_OVERVIEW": ["公司业务概要", "公司简介"],
     "GLOSSARY": ["释义"],
     "IMPORTANT": ["重要事项"],
@@ -247,10 +328,6 @@ TOC_HINTS = {
     "AR": ["合并财务报表项目注释", "应收账款"],
     "DEBT": ["合并财务报表项目注释", "借款"],
     "CIP": ["合并财务报表项目注释", "在建工程"],
-    "P2": ["合并财务报表项目注释", "受限资产"],
-    "P4": ["关联方及关联交易"],
-    "P6": ["或有事项"],
-    "P13": ["非经常性损益"],
     "MDA_INDUSTRY": ["管理层讨论与分析", "行业分析"],
     "MDA_OPERATION": ["管理层讨论与分析", "经营分析"],
     "MDA_OUTLOOK": ["管理层讨论与分析", "发展规划"],

@@ -1159,7 +1159,7 @@ class TushareClient:
                              alignments=["l"] + ["r"] * len(years))
         lines.append(table)
         lines.append("")
-        lines.append("*单位: 百万元; FCF = OCF - |Capex|*")
+        lines.append("*单位: 百万元; FCF = OCF + Capex（Capex为负数，即流出）*")
         return "\n".join(lines)
 
     def _get_cashflow_hk(self, ts_code: str) -> str:
@@ -1230,7 +1230,7 @@ class TushareClient:
         table = format_table(headers, rows, alignments=["l"] + ["r"] * len(years))
         lines.append(table)
         lines.append("")
-        lines.append("*单位: 百万港元; FCF = OCF - |Capex|; c_pay_to_staff 港股不可用*")
+        lines.append("*单位: 百万港元; FCF = OCF + Capex（Capex为负数，即流出）; c_pay_to_staff 港股不可用*")
         if yf_used:
             lines.append("\n*部分缺失数据由 yfinance 补充*")
         return "\n".join(lines)
@@ -1437,10 +1437,24 @@ class TushareClient:
         lines.append("#### 股息率计算（TTM口径）")
         lines.append("")
         
+        # Get latest price - either from store or fetch independently
         quote_df = self._store.get("daily_quote")
         latest_price = 0
         if quote_df is not None and not quote_df.empty:
             latest_price = self._safe_float(quote_df.iloc[0].get("close")) or 0
+        else:
+            # Fetch price independently if not in store (extend to 30 days for non-trading days)
+            today = pd.Timestamp.now().strftime("%Y%m%d")
+            days_ago = (pd.Timestamp.now() - pd.DateOffset(days=30)).strftime("%Y%m%d")
+            price_df = self._safe_call("daily", ts_code=ts_code,
+                                       start_date=days_ago, end_date=today,
+                                       fields="ts_code,trade_date,close")
+            if not price_df.empty:
+                # Sort by trade_date and get the latest
+                price_df = price_df.sort_values("trade_date", ascending=False)
+                latest_price = self._safe_float(price_df.iloc[0]["close"]) or 0
+                # Store for later use
+                self._store["daily_quote"] = price_df.head(1)
         
         ttm_dps = 0
         ttm_yield = 0
@@ -2085,58 +2099,8 @@ class TushareClient:
         return "\n".join(lines)
 
     def _get_agent_placeholders(self, section: str) -> str:
-        """Generate placeholder subsections for Agent WebSearch."""
-        placeholders = {
-            "7": [
-                ("7.2", "管理层信息", """逐项搜索并记录：
-| # | 搜索项 | 搜索关键词示例 |
-|---|--------|-------------|
-| 1 | 控股股东及持股比例 | "{公司名} 大股东 控股" |
-| 2 | CEO/董事长/CFO 姓名及任期 | "{公司名} 管理层 CEO 董事长" |
-| 3 | 过去5年管理层重大变更 | "{公司名} 管理层变更 更换" |
-| 4 | 过去5年是否更换审计师 | "{公司名} 更换审计师" |
-| 5 | 财务造假/违规/处罚记录 | "{公司名} 财务造假 处罚 证监会" |
-| 6 | 控股股东质押/减持/诉讼 | "{公司名} 大股东 质押 减持" |
-| 7 | 回购计划/授权 | "{公司名} 股份回购 计划" |
-
-> **已有 tushare 结构化数据**：
-> - 项目 1（控股股东持股比例）→ §7 十大股东已有数值
-> - 项目 6（质押/减持）→ §16 股权质押已有质押数据
-> - 项目 7（回购）→ §15 股票回购已有回购数据
->
-> Agent 应**补充定性信息**（变更原因、具体情况、最新动态），不需要重新采集已有数值。"""),
-                ("7.3", "历史发展脉络", """| # | 搜索项 | 搜索关键词示例 |
-|---|--------|-------------|
-| 1 | 发展历程 | "{公司名} 发展历程 历史沿革" |
-| 2 | 重大并购/收购 | "{公司名} 重大收购 并购" |
-| 3 | 战略转型 | "{公司名} 战略转型 业务调整" |
-| 4 | 创始人/关键人物 | "{公司名} 创始人 背景" |"""),
-            ],
-            "8": [
-                ("8.1", "产业链定位", "| # | 搜索项 | 搜索关键词示例 |\n|---|--------|-------------|\n| 1 | 产业链图谱 | \"{行业} 产业链图谱 上中下游\" |\n| 2 | 上下游企业 | \"{公司名} 上游供应商 下游客户\" |\n| 3 | 价值链分布 | \"{行业} 价值链 利润分布\" |\n| 4 | 上下游议价能力 | \"{公司名} 议价能力 上下游\" |"),
-                ("8.2", "竞争格局", "| # | 搜索项 | 搜索关键词示例 |\n|---|--------|-------------|\n| 1 | 市场份额 | \"{行业} 市场份额 竞争格局\" |\n| 2 | 行业集中度 | \"{行业} CR5 行业集中度\" |\n| 3 | 差异化优势 | \"{公司名} 竞争优势 差异化\" |"),
-                ("8.3", "行业技术路线", "| # | 搜索项 | 搜索关键词示例 |\n|---|--------|-------------|\n| 1 | 主流技术路线 | \"{行业} 技术路线 主流技术\" |\n| 2 | 技术迭代周期 | \"{行业} 技术迭代 更新周期\" |\n| 3 | 公司技术储备 | \"{公司名} 研发投入 专利\" |\n| 4 | 新兴技术趋势 | \"{行业} 新技术 下一代技术\" |"),
-                ("8.4", "行业趋势", "| # | 搜索项 | 搜索关键词示例 |\n|---|--------|-------------|\n| 1 | 行业周期位置 | \"{行业} 周期 景气度\" |\n| 2 | 供需展望 | \"{行业} 供需 展望\" |\n| 3 | 核心原材料价格趋势 | \"{原材料} 价格走势 最新\" |"),
-                ("8.5", "行业监管动态", "| # | 搜索项 | 搜索关键词示例 |\n|---|--------|-------------|\n| 1 | 碳排放/环保政策 | \"{行业} 碳排放政策 环保监管 最新\" |\n| 2 | 安全生产监管 | \"{行业} 安全生产 监管政策 最新\" |\n| 3 | 产业政策 | \"{行业} 产业政策 发展规划 最新\" |\n| 4 | 进出口政策 | \"{行业} 进出口政策 关税 最新\" |"),
-            ],
-            "10": [
-                ("10.1", "经营回顾", "业绩亮点、核心驱动因素表格（产能释放、规模效应、成本优势、价格因素）"),
-                ("10.2", "前瞻指引", "未来战略、资本开支计划"),
-                ("10.3", "风险因素", "主要经营风险"),
-            ],
-        }
-        
-        lines = []
-        if section in placeholders:
-            for num, name, desc in placeholders[section]:
-                lines.append("")
-                lines.append(format_header(3, f"{num} {name}"))
-                lines.append("")
-                lines.append(f"*[§{num} 待Agent WebSearch补充]*")
-                lines.append("")
-                lines.append(desc)
-        
-        return "\n".join(lines)
+        """Generate placeholder subsections - disabled, all web search info goes to web_search_result.md."""
+        return ""
 
     def _get_holders_hk(self, ts_code: str) -> str:
         """Section 7 (HK): Institutional holders via yfinance + placeholders."""
@@ -2937,7 +2901,7 @@ class TushareClient:
         da_row = ["D 折旧与摊销"]
         capex_row = ["E 资本开支"]
         capex_da_row = ["Capex/D&A"]
-        fcf_row = ["FCF = OCF - |Capex|"]
+        fcf_row = ["FCF = OCF + Capex"]
         da_vals = []  # for median calculation
         capex_vals = []  # for median calculation
         capex_da_vals = []
@@ -3327,7 +3291,7 @@ class TushareClient:
         val_rows = [
             ["总市值（百万元）", fmt(mkt_cap), "—"],
             ["企业价值 EV（百万元）", fmt(ev), "市值+有息负债-现金"],
-            ["EBITDA（百万元）", fmt(ebitda), "营业利润+财务费用+D&A"],
+            ["EBITDA（百万元）", fmt(ebitda), "EBIT + 折旧摊销（Tushare口径）"],
             ["EV/EBITDA", ev_ebitda, "—"],
             ["扣除现金PE", cash_pe, "(市值-净现金)/归母净利润"],
             ["FCF收益率", fcf_yield, "FCF/市值"],
@@ -4135,27 +4099,6 @@ class TushareClient:
                          "§3P/§4P母公司报表在HKFRS体系下不适用，c_pay_to_staff 不可用。")
             lines.append("")
 
-        lines.append("### 13.2 Agent WebSearch 补充")
-        lines.append("")
-        lines.append("*[§13.2 待Agent WebSearch补充]*")
-        lines.append("")
-        lines.append("> **必填风险类型清单**（每类至少1条）：")
-        lines.append("> - [ ] 治理风险：管理层/实控人负面事件")
-        lines.append("> - [ ] 周期风险：行业周期位置、供需变化")
-        lines.append("> - [ ] 政策风险：监管政策变化")
-        lines.append("> - [ ] 财务风险：偿债/流动性/应收等")
-        lines.append("> - [ ] 估值风险：股价位置、估值水平")
-        lines.append("")
-        lines.append("| # | 类型 | 严重程度 | 描述 |")
-        lines.append("|---|------|---------|------|")
-        lines.append("| 1 | [治理风险\\|{高/中/低}] | {严重程度} | {描述} |")
-        lines.append("| 2 | [周期风险\\|{高/中/低}] | {严重程度} | {描述} |")
-        lines.append("| 3 | [政策风险\\|{高/中/低}] | {严重程度} | {描述} |")
-        lines.append("| 4 | [财务风险\\|{高/中/低}] | {严重程度} | {描述} |")
-        lines.append("| 5 | [估值风险\\|{高/中/低}] | {严重程度} | {描述} |")
-        lines.append("")
-        lines.append("> **说明**：以上风险信息来源于公开新闻报道、监管公告和财务数据分析，供Phase 3分析时参考。")
-        
         return "\n".join(lines)
 
     # --- Feature #28: Full data_pack_market.md assembly (Optimized Structure) ---
@@ -4172,7 +4115,7 @@ class TushareClient:
         六、市场行情与估值分析
         七、风险警示与敏感性分析
         八、分析用衍生指标与参数
-        附录：待补充信息清单
+        附录：数据来源说明
         """
         timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
         currency = self._detect_currency(ts_code)
@@ -4418,22 +4361,22 @@ class TushareClient:
             lines.append(format_header(2, "8.1 衍生指标"))
             lines.append(f"\n计算失败: {e}\n")
 
-        # ========== 附录：待补充信息清单 ==========
-        lines.append(format_header(1, "附录：待补充信息清单"))
+        # ========== 附录：数据来源说明 ==========
+        lines.append(format_header(1, "附录：数据来源说明"))
         lines.append("")
-        lines.append("以下信息需通过 PDF 财报提取或人工补充：")
+        lines.append("本数据包由 Tushare Pro API 自动生成，包含以下结构化数据：")
         lines.append("")
-        lines.append("- [ ] 主营业务分拆明细（分产品/分地区营收、成本、毛利率）")
-        lines.append("- [ ] 产能、产量、销量、产销率数据")
-        lines.append("- [ ] 前五大客户/供应商集中度")
-        lines.append("- [ ] 存货明细与库龄结构")
-        lines.append("- [ ] 应收账款账龄与坏账计提")
-        lines.append("- [ ] 有息负债明细（借款利率、到期期限）")
-        lines.append("- [ ] 在建工程/固定资产明细")
-        lines.append("- [ ] 关联方交易完整数据")
-        lines.append("- [ ] 行业格局与竞争环境分析")
-        lines.append("- [ ] 管理层讨论与分析核心摘要")
-        lines.append("- [ ] 未来发展规划与风险因素")
+        lines.append("| 数据类型 | 数据来源 | 说明 |")
+        lines.append("|---------|---------|------|")
+        lines.append("| 公司基本信息 | Tushare API | 股票代码、行业、PE/PB等 |")
+        lines.append("| 主营业务构成 | Tushare API | 分产品营收、毛利 |")
+        lines.append("| 财务报表 | Tushare API | 资产负债表、利润表、现金流量表 |")
+        lines.append("| 财务指标 | Tushare API | ROE、毛利率、周转率等 |")
+        lines.append("| 股东信息 | Tushare API | 十大股东、股权质押 |")
+        lines.append("")
+        lines.append("**补充数据来源**：")
+        lines.append("- PDF 年报提取 → `pdf_sections.json` / `data_pack_report.md`")
+        lines.append("- 网络搜索信息 → `web_search_result.md`")
         lines.append("")
 
         lines.append("---")
@@ -4596,46 +4539,24 @@ class TushareClient:
 
 
 class DataPackValidator:
-    """Validate data_pack_market.md structure completeness after Agent WebSearch."""
+    """Validate data_pack_market.md structure completeness."""
     
     REQUIRED_STRUCTURE = {
         "## 7. 股东与治理": {
             "section_patterns": ["## 7. 股东与治理"],
             "subsections": [
-                ("### 7.1", ["### 7.1 审计意见", "### 7.1 管理层信息"]),
-                ("### 7.2", ["### 7.2 管理层信息", "### 7.2 历史发展脉络"]),
+                ("### 7.1", ["### 7.1 审计意见"]),
             ],
-            "allow_placeholder": True,
+            "allow_placeholder": False,
         },
         "## 8. 行业与竞争": {
             "section_patterns": ["## 8. 行业与竞争"],
-            "subsections": [
-                ("### 8.1", ["### 8.1 产业链定位"]),
-                ("### 8.2", ["### 8.2 竞争格局"]),
-                ("### 8.3", ["### 8.3 行业技术路线"]),
-                ("### 8.4", ["### 8.4 行业趋势"]),
-                ("### 8.5", ["### 8.5 行业监管动态"]),
-            ],
+            "subsections": [],
             "allow_placeholder": False,
         },
         "## 10. 管理层讨论与分析": {
             "section_patterns": ["## 10. 管理层讨论与分析", "## 10. MD&A"],
-            "subsections": [
-                ("### 10.1", ["### 10.1 经营回顾"]),
-            ],
-            "required_content": [
-                "核心驱动因素",
-            ],
-            "allow_placeholder": False,
-        },
-        "### 13.2 Agent WebSearch 补充": {
-            "required_content": [
-                "[治理风险",
-                "[周期风险",
-                "[政策风险",
-                "[财务风险",
-                "[估值风险",
-            ],
+            "subsections": [],
             "allow_placeholder": False,
         },
     }
@@ -4688,10 +4609,6 @@ class DataPackValidator:
                             break
                     if not found:
                         issues.append(f"{section} 缺少子章节: {subsection_prefix}")
-                    elif requirements.get("allow_placeholder", False):
-                        placeholder = f"*[§{subsection_prefix.split()[0]} 待Agent WebSearch补充]"
-                        if placeholder in section_content:
-                            issues.append(f"{subsection_prefix} 仍为占位符，待Agent补充")
             
             if "required_content" in requirements:
                 for req_content in requirements["required_content"]:

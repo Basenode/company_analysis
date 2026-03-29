@@ -1,0 +1,770 @@
+# 分析模块统一配置文件
+# ============================
+# 本文件是所有分析模块的"单一真相来源"（Single Source of Truth）
+# 所有其他文件（pdf_config.py, coordinator_v2.md, pdf_parser.md, report_template.md）都从这里读取
+# 新增/修改模块时，只需修改本文件，其他文件会自动同步
+
+# ============================
+# 一、PDF提取章节配置
+# ============================
+
+pdf_sections:
+  # --- 第一部分：财报真实性校验 ---
+  AUDIT:
+    name: "审计报告"
+    location: "开篇"
+    purpose: "审计意见类型、关键审计事项"
+    report_section: "§2.1 审计意见"
+    keywords:
+      include: ["审计报告", "审计意见", "标准无保留意见", "关键审计事项", "保留意见", "否定意见", "无法表示意见", "带强调事项段", "会计师事务所", "签字注册会计师"]
+      exclude: ["主营业务", "经营情况", "行业分析", "未来规划", "财务报表项目注释"]
+      mandatory: ["审计意见", "关键审计事项", "会计师事务所"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  AUDIT_OPINION:
+    name: "审计意见与关键审计事项"
+    location: "第十节 财务报告→一、审计报告"
+    purpose: "审计质量评级"
+    report_section: "§2.1 审计意见"
+    keywords:
+      include: ["审计意见", "关键审计事项", "审计报告日期", "审计机构", "强调事项段", "其他信息段", "持续经营能力", "审计应对程序"]
+      exclude: ["主营业务", "经营情况", "行业分析", "未来规划", "财务报表项目注释"]
+      mandatory: ["审计意见", "关键审计事项"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  ACCOUNTING_POLICY:
+    name: "会计政策与会计估计"
+    location: "第十节 财务报告→二、财务报表编制基础"
+    purpose: "政策一致性核查"
+    report_section: "§2.2 会计政策"
+    keywords:
+      include: ["会计政策变更", "会计估计变更", "重要会计政策", "重要会计估计", "收入确认政策", "坏账计提政策", "存货跌价政策", "固定资产折旧政策", "研发资本化政策", "前期差错更正"]
+      exclude: ["主营业务明细", "营业收入", "营业成本", "产能产量", "行业分析"]
+      mandatory: ["会计政策变更", "会计估计变更", "重要会计政策", "前期差错更正"]
+    extract_config:
+      buffer_pages: 4
+      max_chars: 10000
+
+  P1:
+    name: "审计意见核查"
+    location: "审计报告"
+    purpose: "审计意见核查（精提取）"
+    report_section: "§2.1 审计意见"
+    keywords:
+      include: ["审计意见类型", "审计机构名称", "审计费用", "连续审计年限", "审计报告日期", "关键审计事项", "强调事项段"]
+      exclude: ["主营业务", "经营情况", "行业分析"]
+      mandatory: ["审计意见类型", "审计机构", "关键审计事项"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  P9:
+    name: "会计政策一致性核查"
+    location: "财务报表附注"
+    purpose: "会计政策一致性（精提取）"
+    report_section: "§2.2 会计政策"
+    keywords:
+      include: ["会计政策变更情况", "会计估计变更情况", "前期会计差错更正", "坏账计提比例", "存货跌价计提比例", "固定资产折旧年限", "研发资本化比例"]
+      exclude: ["主营业务明细", "营业收入", "营业成本"]
+      mandatory: ["会计政策变更", "会计估计变更", "前期差错更正", "坏账计提比例"]
+    extract_config:
+      buffer_pages: 4
+      max_chars: 10000
+
+  # --- 第二部分：核心财务三维度分析 ---
+  BIZ_OVERVIEW:
+    name: "公司简介/重要提示"
+    location: "第一节"
+    purpose: "基本信息、分红预案"
+    report_section: "§1.1 主营业务"
+    keywords:
+      include: ["公司业务概要", "主营业务与产品", "主要产品及用途", "经营模式", "行业地位", "核心竞争力", "商业模式"]
+      exclude: ["财务报表附注", "营业收入明细", "营业成本构成"]
+      mandatory: ["主营业务", "经营模式", "核心竞争力", "行业地位"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 10000
+
+  BIZ:
+    name: "核心竞争力分析"
+    location: "第三节"
+    purpose: "护城河、话语权支撑"
+    report_section: "§1.1 主营业务"
+    keywords:
+      include: ["营业收入分产品", "主营业务分产品", "营业收入分行业", "分产品毛利率", "主营业务收入构成", "毛利率变动"]
+      exclude: ["产能", "产量", "销量", "在建工程", "行业分析", "风险因素"]
+      mandatory: ["分产品营收", "分地区营收", "营业成本", "毛利率"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  CAP:
+    name: "产能产量分析"
+    location: "第三节"
+    purpose: "产能利用率、产销率"
+    report_section: "§1.1 主营业务"
+    keywords:
+      include: ["产能产量", "产能利用率", "产销率", "产量销量", "主要产品产量", "生产能力", "产能建设", "新增产能"]
+      exclude: ["主营业务收入", "分产品营收", "在建工程预算", "行业分析"]
+      mandatory: ["产能利用率", "产销率", "产量", "销量"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  CUS:
+    name: "客户与供应商情况"
+    location: "第三节"
+    purpose: "客户集中度、供应商集中度"
+    report_section: "§1.3 竞争格局"
+    keywords:
+      include: ["前五名客户", "前五大客户", "主要客户", "客户集中度", "前五名供应商", "前五大供应商", "主要供应商", "供应商集中度"]
+      exclude: ["主营业务", "产能", "在建工程", "行业分析"]
+      mandatory: ["前五名客户", "前五名供应商", "客户集中度", "供应商集中度"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  INV:
+    name: "存货附注"
+    location: "财务报表附注"
+    purpose: "库龄、跌价准备"
+    report_section: "模块1 资产负债表"
+    keywords:
+      include: ["存货分类", "存货明细", "存货构成", "存货库龄", "存货跌价准备", "原材料库存", "库存商品"]
+      exclude: ["主营业务", "营收", "产能", "客户", "应收账款"]
+      mandatory: ["存货分类", "存货跌价准备", "存货库龄"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  AR:
+    name: "应收账款附注"
+    location: "财务报表附注"
+    purpose: "账龄、坏账计提"
+    report_section: "模块1 资产负债表"
+    keywords:
+      include: ["应收账款账龄", "应收账款按账龄", "应收账款坏账", "应收账款计提", "坏账准备", "应收账款余额"]
+      exclude: ["存货", "主营业务", "产能", "在建工程", "递延所得税", "预付账款"]
+      mandatory: ["应收账款账龄", "坏账准备", "应收票据", "应收账款余额"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  DEBT:
+    name: "借款与负债"
+    location: "财务报表附注"
+    purpose: "有息负债结构"
+    report_section: "模块1 资产负债表"
+    keywords:
+      include: ["短期借款明细", "长期借款明细", "借款利率", "借款到期", "有息负债", "银行借款", "信用借款", "抵押借款"]
+      exclude: ["营收", "成本", "存货", "应收", "产能"]
+      mandatory: ["有息负债", "借款利率", "到期期限", "短期借款", "长期借款"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  CIP:
+    name: "在建工程明细"
+    location: "财务报表附注"
+    purpose: "资本开支、投资项目"
+    report_section: "模块1 资产负债表"
+    keywords:
+      include: ["在建工程明细", "在建工程项目", "在建工程预算", "工程进度", "在建工程转固", "固定资产明细", "资本开支"]
+      exclude: ["主营业务", "营收", "产能产量", "客户"]
+      mandatory: ["在建工程项目", "工程进度", "固定资产明细", "资本开支"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  P2:
+    name: "受限现金明细"
+    location: "附注→货币资金"
+    purpose: "资产质量分析"
+    report_section: "模块1 资产负债表"
+    keywords:
+      include: ["所有权或使用权受限资产", "受限资产", "使用受限的资产", "受限的货币资金", "资产抵押", "资产质押"]
+      exclude: ["主营业务", "营收", "成本", "行业分析"]
+      mandatory: ["受限资产", "所有权或使用权受限资产", "受限的货币资金"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  P3:
+    name: "应收账款账龄分析"
+    location: "附注→应收账款"
+    purpose: "资产质量（营运资本）"
+    report_section: "模块1 资产负债表"
+    keywords:
+      include: ["应收账款账龄", "应收账款按账龄", "应收账款坏账", "坏账准备", "应收账款余额"]
+      exclude: ["存货", "主营业务", "产能"]
+      mandatory: ["应收账款账龄", "坏账准备"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  P4:
+    name: "关联交易明细"
+    location: "附注→关联方及关联交易"
+    purpose: "商业模式（上下游关系）"
+    report_section: "§2.3 异常数据"
+    keywords:
+      include: ["关联方交易", "关联交易", "关联方及关联交易", "重大关联交易", "关联方资金往来", "关联担保"]
+      exclude: ["主营业务", "营收", "成本", "行业分析"]
+      mandatory: ["关联方交易", "关联交易", "关联担保", "关联方资金往来"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  P5:
+    name: "主要客户与供应商"
+    location: "第三节/附注"
+    purpose: "商业模式（客户集中度）"
+    report_section: "§1.3 竞争格局"
+    keywords:
+      include: ["前五名客户", "前五大客户", "主要客户", "客户集中度", "前五名供应商", "前五大供应商", "主要供应商"]
+      exclude: ["主营业务", "产能", "在建工程"]
+      mandatory: ["前五名客户", "前五名供应商", "客户集中度"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  P6:
+    name: "或有负债与承诺"
+    location: "附注→或有事项"
+    purpose: "风险因素"
+    report_section: "第五部分 风险识别"
+    keywords:
+      include: ["或有负债", "或有事项", "未决诉讼", "重大诉讼", "对外担保", "承诺及或有事项", "资本承诺"]
+      exclude: ["主营业务", "营收", "成本", "行业分析"]
+      mandatory: ["或有事项", "未决诉讼", "对外担保", "承诺事项"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  P7:
+    name: "成本结构分析"
+    location: "第三节/附注"
+    purpose: "商业模式（成本驱动）"
+    report_section: "模块2 利润表"
+    keywords:
+      include: ["成本结构", "成本构成", "营业成本构成", "原材料成本", "人工成本", "能源动力", "折旧摊销"]
+      exclude: ["主营业务", "产能", "客户", "行业分析"]
+      mandatory: ["成本结构", "成本构成", "营业成本构成"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  P8:
+    name: "收入结构与业务模式"
+    location: "第三节"
+    purpose: "商业模式（收入来源）"
+    report_section: "§1.1 主营业务"
+    keywords:
+      include: ["营业收入分产品", "主营业务分产品", "分产品毛利率", "收入结构", "业务模式", "盈利模式"]
+      exclude: ["产能", "产量", "在建工程", "风险因素"]
+      mandatory: ["分产品营收", "分产品毛利率", "收入结构"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  P13:
+    name: "非经常性损益"
+    location: "附注→非经常性损益"
+    purpose: "盈利能力真实性"
+    report_section: "模块2 利润表"
+    keywords:
+      include: ["非经常性损益项目及金额", "非经常性损益合计", "非经常性损益明细", "扣除非经常性损益"]
+      exclude: ["主营业务", "营收", "成本", "行业分析"]
+      mandatory: ["非经常性损益", "扣除非经常性损益", "非经常性损益明细"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  # --- 第三部分：分行业差异化分析 ---
+  MDA_INDUSTRY:
+    name: "行业格局和趋势"
+    location: "第三节"
+    purpose: "行业分析、政策影响"
+    report_section: "第三部分 分行业"
+    keywords:
+      include: ["行业分析", "行业现状", "行业发展趋势", "行业竞争格局", "市场环境", "宏观经济", "行业周期", "供需格局", "行业政策"]
+      exclude: ["主营业务明细", "财务报表项目注释", "产能", "在建工程", "风险因素", "未来规划"]
+      mandatory: ["行业分析", "行业竞争格局", "行业发展趋势", "行业周期"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 10000
+
+  MDA_OPERATION:
+    name: "主营业务分析"
+    location: "第三节"
+    purpose: "经营情况、增长驱动"
+    report_section: "模块2 利润表"
+    keywords:
+      include: ["经营情况分析", "经营回顾", "经营成果", "主营业务分析", "收入分析", "成本分析", "利润分析", "财务状况分析"]
+      exclude: ["行业分析", "未来规划", "风险因素", "产能建设", "在建工程"]
+      mandatory: ["经营情况分析", "主营业务分析", "收入成本分析", "经营成果"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 10000
+
+  MDA_OUTLOOK:
+    name: "未来发展展望"
+    location: "第三节"
+    purpose: "战略规划、经营目标"
+    report_section: "§1.4 分析目标"
+    keywords:
+      include: ["未来发展规划", "发展战略", "发展展望", "经营计划", "投资计划", "产能规划", "未来经营目标"]
+      exclude: ["历史经营数据", "行业分析", "财务报表", "风险因素"]
+      mandatory: ["未来发展规划", "经营计划", "发展战略"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  MDA_RISK:
+    name: "可能面对的风险"
+    location: "第三节"
+    purpose: "风险因素识别"
+    report_section: "第五部分 风险识别"
+    keywords:
+      include: ["风险因素", "风险提示", "可能面对的风险", "风险与对策", "主要风险", "经营风险", "财务风险", "政策风险"]
+      exclude: ["主营业务", "营收", "成本", "产能", "未来规划", "行业分析"]
+      mandatory: ["风险因素", "经营风险", "财务风险", "政策风险"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  SUB:
+    name: "主要控股参股公司"
+    location: "第三节/附注"
+    purpose: "业务结构"
+    report_section: "§1.1 主营业务"
+    keywords:
+      include: ["主要控股参股公司分析", "主要子公司及对公司净利润的影响", "主要控股参股公司情况", "控股子公司情况", "在子公司中的权益"]
+      exclude: ["母公司财务明细", "行业分析", "主营业务", "风险因素"]
+      mandatory: ["主要控股参股公司", "子公司经营情况", "在子公司中的权益"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  INDUSTRY_EXTRA:
+    name: "行业专项指标"
+    location: "第三节/附注"
+    purpose: "行业专项数据"
+    report_section: "第三部分 分行业"
+    keywords:
+      include: ["环保投入", "安全生产", "节能减排", "环保设施", "研发投入", "研发费用", "专利数量", "行业专项指标"]
+      exclude: ["主营业务", "财务明细", "行业分析"]
+      mandatory: ["环保投入", "安全生产", "研发投入", "行业专项数据"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+# ============================
+# 二、网络搜索项配置
+# ============================
+
+search_items:
+  # --- 第一优先级（必须执行）---
+  tier1_company_positioning:
+    priority: 1
+    name: "公司底层定位信息"
+    report_section: "§1.1-§1.4"
+    items:
+      - id: "1.1"
+        name: "同行业商业模式对标"
+        template: "{公司名} {细分赛道} 同行 商业模式对比 {最新年份}"
+        output: "商业模式行业对比"
+      - id: "1.2"
+        name: "成本曲线行业排名"
+        template: "{公司名} {核心产品} 单位成本 行业排名 {最新年份}"
+        output: "成本优势验证"
+      - id: "1.3"
+        name: "上下游话语权行业对标"
+        template: "{细分赛道} 应收应付 预付预收 行业平均水平 {最新年份}"
+        output: "话语权行业对标"
+      - id: "1.4"
+        name: "行业政策影响"
+        template: "{细分赛道} 监管政策 对头部企业影响 {最新年份}"
+        output: "政府话语权验证"
+      - id: "1.5"
+        name: "行业生命周期"
+        template: "{细分赛道名} 行业生命周期 发展阶段 {最新年份}"
+        output: "生命周期判断"
+      - id: "1.6"
+        name: "行业规模与增速"
+        template: "{细分赛道名} 整体市场规模 同比增速 {最新年份}"
+        output: "行业天花板"
+      - id: "1.7"
+        name: "行业竞争格局"
+        template: "{细分赛道名} 市场集中度 CR5 CR10 企业排名 {最新年份}"
+        output: "竞争格局验证"
+      - id: "1.8"
+        name: "分产品市场占有率"
+        template: "{公司名} {核心产品名} 市场份额 市占率 {最新年份}"
+        output: "市占率数据"
+      - id: "1.9"
+        name: "可比公司对标"
+        template: "{公司名} {核心产品名} 单位成本 毛利率 同行对比 {最新年份}"
+        output: "竞争优势验证"
+      - id: "1.10"
+        name: "企业排名"
+        template: "{细分赛道名} 企业产能/营收/净利润排名 {最新年份}"
+        output: "行业排名"
+      - id: "1.11"
+        name: "机构持仓"
+        template: "{公司名} 机构持仓 社保 外资 基金持股比例 {最新季度}"
+        output: "机构认可度"
+      - id: "1.12"
+        name: "券商一致预期"
+        template: "{公司名} 券商研报 业绩一致预期 目标价 评级 {最新年份}"
+        output: "市场预期"
+      - id: "1.13"
+        name: "核心投资逻辑"
+        template: "{公司名} 核心投资逻辑 券商研报 {最新年份}"
+        output: "投资逻辑"
+      - id: "1.14"
+        name: "市场分歧"
+        template: "{公司名} 投资风险 市场分歧 券商研报 {最新年份}"
+        output: "风险点"
+      - id: "1.15"
+        name: "估值历史分位"
+        template: "{公司名} PE PB 历史分位 {最新年份}"
+        output: "估值位置"
+
+  tier1_financial_quality:
+    priority: 1
+    name: "财报真实性校验"
+    report_section: "§2.1-§2.3"
+    items:
+      - id: "2.1"
+        name: "审计机构排名声誉"
+        template: "{会计师事务所} 排名 声誉 行业地位 {最新年份}"
+        output: "审计质量评级"
+      - id: "2.2"
+        name: "审计机构处罚记录"
+        template: "{会计师事务所} 处罚 监管 {最新年份}"
+        output: "审计风险"
+      - id: "2.3"
+        name: "公司监管记录"
+        template: "{公司名} 交易所 问询函 监管函 {最新3年}"
+        output: "合规风险"
+      - id: "2.4"
+        name: "会计政策变更"
+        template: "{公司名} 会计政策变更 交易所 公告 {最新年份}"
+        output: "政策一致性"
+      - id: "2.5"
+        name: "行业坏账计提对标"
+        template: "{细分赛道名} 坏账计提比例 行业平均 {最新年份}"
+        output: "政策谨慎性"
+      - id: "2.6"
+        name: "行业存货跌价对标"
+        template: "{细分赛道名} 存货跌价计提 行业对比 {最新年份}"
+        output: "政策谨慎性"
+      - id: "2.7"
+        name: "行业研发资本化对标"
+        template: "{细分赛道名} 研发资本化比例 行业平均 {最新年份}"
+        output: "政策谨慎性"
+      - id: "2.8"
+        name: "大存大贷异常"
+        template: "{公司名} 货币资金 有息负债 异常 {最新年份}"
+        output: "异常数据初筛"
+      - id: "2.9"
+        name: "经营现金流背离"
+        template: "{公司名} 经营现金流 净利润 背离 {最新年份}"
+        output: "异常数据初筛"
+      - id: "2.10"
+        name: "关联交易异常"
+        template: "{公司名} 关联交易 占比 公允性 {最新年份}"
+        output: "异常数据初筛"
+
+  # --- 第二优先级（选择性执行）---
+  tier2_industry_deep:
+    priority: 2
+    name: "行业深度信息"
+    report_section: "第三部分 分行业"
+    items:
+      - id: "3.1"
+        name: "行业政策监管"
+        template: "{细分赛道名} 行业政策 监管变化 {最新年份}"
+        output: "政策影响"
+      - id: "3.2"
+        name: "行业技术趋势"
+        template: "{细分赛道名} 技术趋势 发展方向 {最新年份}"
+        output: "技术趋势"
+      - id: "3.3"
+        name: "行业供需格局"
+        template: "{细分赛道名} 供需缺口 产能利用率 {最新年份}"
+        output: "供需分析"
+      - id: "3.4"
+        name: "行业价格走势"
+        template: "{核心产品名} 价格走势 历史分位 {最新年份}"
+        output: "价格周期"
+
+  tier2_financial_analysis:
+    priority: 2
+    name: "核心财务三维度分析"
+    report_section: "模块1-4"
+    items:
+      - id: "4.1"
+        name: "行业资产负债率对标"
+        template: "{细分赛道名} 资产负债率 行业平均 {最新年份}"
+        output: "偿债能力对标"
+      - id: "4.2"
+        name: "行业周转率对标"
+        template: "{细分赛道名} 应收账款周转率 存货周转率 行业平均 {最新年份}"
+        output: "营运能力对标"
+      - id: "4.3"
+        name: "行业毛利率对标"
+        template: "{细分赛道名} 毛利率 净利率 行业平均 {最新年份}"
+        output: "盈利能力对标"
+      - id: "4.4"
+        name: "行业费用率对标"
+        template: "{细分赛道名} 销售费用率 管理费用率 行业平均 {最新年份}"
+        output: "费用管控对标"
+      - id: "4.5"
+        name: "行业现金流对标"
+        template: "{细分赛道名} 盈利现金比率 行业平均 {最新年份}"
+        output: "现金流质量对标"
+      - id: "4.6"
+        name: "行业ROE对标"
+        template: "{细分赛道名} ROE ROIC 行业对比 {最新年份}"
+        output: "杜邦分析对标"
+
+  # --- 第三优先级（根据行业类型执行）---
+  tier3_company_deep:
+    priority: 3
+    name: "公司深度信息"
+    report_section: "§5 风险识别"
+    items:
+      - id: "5.1"
+        name: "管理层稳定性"
+        template: "{公司名} 管理层变动 董事长 总经理 {最新年份}"
+        output: "治理风险"
+      - id: "5.2"
+        name: "股权质押情况"
+        template: "{公司名} 大股东 股权质押 减持 {最新年份}"
+        output: "治理风险"
+      - id: "5.3"
+        name: "发展战略规划"
+        template: "{公司名} 发展战略 产能扩张 {最新年份}"
+        output: "战略规划"
+
+  tier3_industry_specific:
+    priority: 3
+    name: "分行业差异化分析"
+    report_section: "第三部分 分行业"
+    items:
+      - id: "6.1"
+        name: "周期位置判断"
+        template: "{细分赛道名} 周期位置 复苏 繁荣 衰退 萧条 {最新年份}"
+        output: "周期位置"
+        industry_filter: ["煤化工", "石油化工", "煤炭", "有色", "钢铁"]
+      - id: "6.2"
+        name: "成本曲线排名"
+        template: "{公司名} 单位成本 行业排名 成本曲线 {最新年份}"
+        output: "成本优势"
+        industry_filter: ["煤化工", "石油化工", "煤炭", "有色", "钢铁"]
+      - id: "6.3"
+        name: "供需缺口分析"
+        template: "{细分赛道名} 供需缺口 产能投放 {最新年份}"
+        output: "供需格局"
+        industry_filter: ["煤化工", "石油化工", "煤炭", "有色", "钢铁"]
+      - id: "6.4"
+        name: "品牌市占率"
+        template: "{公司名} 品牌价值 品牌排名 {最新年份}"
+        output: "品牌力"
+        industry_filter: ["食品饮料", "家电", "消费"]
+      - id: "6.5"
+        name: "渠道结构"
+        template: "{公司名} 渠道占比 线上线下 {最新年份}"
+        output: "渠道力"
+        industry_filter: ["食品饮料", "家电", "消费"]
+      - id: "6.6"
+        name: "研发管线进度"
+        template: "{公司名} 研发管线 进度 临床试验 {最新年份}"
+        output: "研发能力"
+        industry_filter: ["医药", "创新药", "医疗器械"]
+      - id: "6.7"
+        name: "集采影响"
+        template: "{公司名} 集采中标 降价幅度 {最新年份}"
+        output: "政策影响"
+        industry_filter: ["医药", "创新药", "医疗器械"]
+
+  tier3_peer_comparison:
+    priority: 3
+    name: "同业对标与护城河"
+    report_section: "第四部分 同业对标"
+    items:
+      - id: "7.1"
+        name: "可比公司筛选"
+        template: "{细分赛道名} 上市公司 排名 市值 {最新年份}"
+        output: "可比公司清单"
+      - id: "7.2"
+        name: "核心指标对标"
+        template: "{公司名} vs {竞争对手名} 毛利率 净利率 ROE {最新年份}"
+        output: "竞争优势验证"
+      - id: "7.3"
+        name: "护城河验证"
+        template: "{公司名} 护城河 核心竞争力 {最新年份}"
+        output: "护城河类型"
+
+  tier3_risk_analysis:
+    priority: 3
+    name: "风险识别与敏感性"
+    report_section: "第五部分 风险识别"
+    items:
+      - id: "8.1"
+        name: "财务风险"
+        template: "{公司名} 债务风险 偿债压力 {最新年份}"
+        output: "财务风险"
+      - id: "8.2"
+        name: "经营风险"
+        template: "{公司名} 经营风险 核心问题 {最新年份}"
+        output: "经营风险"
+      - id: "8.3"
+        name: "政策风险"
+        template: "{细分赛道名} 政策风险 监管变化 {最新年份}"
+        output: "政策风险"
+      - id: "8.4"
+        name: "治理风险"
+        template: "{公司名} 大股东 股权质押 减持 {最新年份}"
+        output: "治理风险"
+
+  tier3_valuation:
+    priority: 3
+    name: "估值与价值判断"
+    report_section: "第六部分 估值判断"
+    items:
+      - id: "9.1"
+        name: "估值方法适配"
+        template: "{细分赛道名} 估值方法 PE PB DCF 适用 {最新年份}"
+        output: "估值方法选择"
+      - id: "9.2"
+        name: "相对估值对标"
+        template: "{公司名} PE PB 历史分位 {最新年份}"
+        output: "相对估值"
+      - id: "9.3"
+        name: "可比公司估值"
+        template: "{可比公司名} PE PB 对比 {最新年份}"
+        output: "估值对标"
+      - id: "9.4"
+        name: "市场预期"
+        template: "{公司名} 券商目标价 一致预期 {最新年份}"
+        output: "市场预期"
+
+# ============================
+# 三、报告章节配置
+# ============================
+
+report_sections:
+  - id: "part1"
+    name: "分析前置准备与财报真实性校验"
+    subsections:
+      - id: "1.1"
+        name: "核心主营业务与商业模式"
+        data_sources: ["data_pack§9", "pdf_sections[BIZ]", "web_search[1.1-1.4]"]
+      - id: "1.2"
+        name: "所属细分赛道与行业属性"
+        data_sources: ["data_pack§1", "web_search[1.5-1.6]"]
+      - id: "1.3"
+        name: "竞争格局与行业地位"
+        data_sources: ["web_search[1.7-1.10]", "pdf_sections[MDA_INDUSTRY]"]
+      - id: "1.4"
+        name: "分析目标锚定"
+        data_sources: ["web_search[1.11-1.15]", "pdf_sections[MDA_OUTLOOK]"]
+      - id: "2.1"
+        name: "审计意见核查"
+        data_sources: ["data_pack§7", "pdf_sections[AUDIT]", "web_search[2.1-2.3]"]
+      - id: "2.2"
+        name: "会计政策与估计一致性核查"
+        data_sources: ["pdf_sections[ACCOUNTING_POLICY]", "web_search[2.4-2.7]"]
+      - id: "2.3"
+        name: "异常数据初筛"
+        data_sources: ["data_pack§3-§5", "web_search[2.8-2.10]"]
+
+  - id: "part2"
+    name: "核心财务三维度深度分析"
+    subsections:
+      - id: "module1"
+        name: "资产负债表分析"
+        data_sources: ["data_pack§4", "pdf_sections[DEBT/INV/AR/P2/P3]", "web_search[4.1-4.2]"]
+      - id: "module2"
+        name: "利润表分析"
+        data_sources: ["data_pack§3", "pdf_sections[P7/P8/P13]", "web_search[4.3-4.4]"]
+      - id: "module3"
+        name: "现金流量表分析"
+        data_sources: ["data_pack§5", "web_search[4.5]"]
+      - id: "module4"
+        name: "杜邦分析体系"
+        data_sources: ["data_pack§12", "web_search[4.6]"]
+
+  - id: "part3"
+    name: "分行业差异化分析框架"
+    data_sources: ["pdf_sections[MDA_INDUSTRY]", "web_search[3.1-3.4, 6.1-6.7]"]
+
+  - id: "part4"
+    name: "同业对标与护城河验证"
+    data_sources: ["web_search[7.1-7.3]", "data_pack§17"]
+
+  - id: "part5"
+    name: "风险识别与敏感性分析"
+    data_sources: ["pdf_sections[MDA_RISK]", "web_search[8.1-8.4]", "data_pack§13"]
+
+  - id: "part6"
+    name: "估值与价值判断"
+    data_sources: ["web_search[9.1-9.4]", "data_pack§17.8/17.9"]
+
+# ============================
+# 四、数据来源优先级配置
+# ============================
+
+data_source_priority:
+  financial_data:
+    - name: "Tushare API"
+      file: "data_pack_market.md"
+      priority: 1
+    - name: "PDF年报财务报表"
+      file: "pdf_sections.json"
+      priority: 2
+
+  text_data:
+    - name: "PDF年报文本"
+      file: "pdf_sections.json"
+      priority: 1
+    - name: "网络搜索"
+      file: "web_search_result.md"
+      priority: 2
+
+  industry_data:
+    - name: "网络搜索"
+      file: "web_search_result.md"
+      priority: 1
+    - name: "PDF年报管理层讨论"
+      file: "pdf_sections.json"
+      priority: 2
+
+# ============================
+# 五、校验规则配置
+# ============================
+
+validation_rules:
+  pdf_sections:
+    required_sections: ["BIZ", "MDA_INDUSTRY", "MDA_OPERATION"]
+    optional_sections: ["P1", "P9", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P13", "SUB"]
+
+  data_pack:
+    required_sections: ["§1", "§3", "§4", "§5", "§9", "§12"]
+    min_years: 3
+
+  web_search:
+    required_tier1_items: 25  # 第一优先级必须完成25项
+    required_tier2_items: 0   # 第二优先级可选
+    required_tier3_items: 0   # 第三优先级根据行业选择
+
+  report:
+    required_parts: ["part1", "part2"]
+    optional_parts: ["part3", "part4", "part5", "part6"]
