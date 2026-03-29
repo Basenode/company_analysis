@@ -1,0 +1,132 @@
+# 龟龟投资策略框架 - 统一配置文件
+# 版本: v2.1
+
+# 工作空间配置
+workspace:
+  root: "."
+  output_dir: "output"
+  cache_dir: ".cache"
+
+# Tushare API 配置
+tushare:
+  timeout: 30
+  retry:
+    max_retries: 3
+    base_delay: 1.0
+    max_delay: 10.0
+    exponential_base: 2.0
+  cache:
+    enabled: true
+    ttl_days: 7
+  rate_limit:
+    delay_between_calls: 0.5
+
+# PDF 提取配置
+pdf:
+  max_file_size_mb: 200
+  timeout_sec: 600
+  extract_mode: "full"
+  parallel:
+    enabled: true
+    max_workers: 4
+    chunk_size: 3
+  large_file_threshold_mb: 100
+  large_file_options:
+    - full
+    - core
+    - custom
+  fallback_encoding: "utf-8"
+
+# 网络搜索配置
+web_search:
+  timeout_sec: 300
+  cache_days: 7
+  max_results_per_query: 10
+  trusted_sources:
+    - "cninfo.com.cn"
+    - "sse.com.cn"
+    - "szse.cn"
+    - "eastmoney.com"
+    - "sina.com.cn"
+    - "10jqka.com.cn"
+
+# 数据校验配置
+validation:
+  tolerance_thresholds:
+    revenue: 0.01
+    net_profit: 0.01
+    total_assets: 0.01
+    net_assets: 0.01
+    gross_margin: 0.02
+    inventory: 0.02
+    accounts_receivable: 0.02
+    default: 0.05
+  completeness_thresholds:
+    full: 0.90
+    partial: 0.70
+
+# 任务调度配置
+scheduler:
+  parallel_execution: true
+  max_concurrent_tasks: 5
+  task_timeout:
+    pdf_extract: 600
+    tushare_collect: 300
+    web_search: 300
+    report_generate: 600
+
+# 资源限制配置
+resource_limits:
+  pdf_extract:
+    max_cpu: 2
+    max_memory_gb: 2
+  batch_analysis:
+    max_concurrent: 5
+  auto_pause:
+    enabled: true
+    cpu_threshold: 90
+    mem_threshold: 85
+
+# 输出配置
+output:
+  formats:
+    - md
+    - xlsx
+  include_summary: true
+  include_source_appendix: true
+  include_validation_report: true
+  timestamp_in_filename: true
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s | %(task_id)s | %(module)s | %(levelname)s | %(message)s"
+  file_enabled: true
+  console_enabled: true
+  max_file_size_mb: 10
+  backup_count: 5
+
+# 断点续传配置
+checkpoint:
+  enabled: true
+  auto_save_interval_sec: 30
+  resume_on_failure: true
+  max_retry_attempts: 3
+
+# 数据源优先级配置
+data_sources:
+  financial_data:
+    - name: tushare
+      priority: 1
+      enabled: true
+  company_info:
+    - name: tushare
+      priority: 1
+      enabled: true
+  market_data:
+    - name: tushare
+      priority: 1
+      enabled: true
+    - name: yfinance
+      priority: 2
+      enabled: true

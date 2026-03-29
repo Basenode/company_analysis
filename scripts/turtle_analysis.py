@@ -4,12 +4,17 @@
 Core capabilities:
   - Tushare API data collection and storage
   - Local PDF file management
-  - PDF preprocessing
+  - PDF preprocessing with parallel extraction
+  - Checkpoint/resume support
+  - Unified configuration management
 
 Usage:
     python scripts/turtle_analysis.py --code 600887
     python scripts/turtle_analysis.py --code 600887.SH --pdf path/to/report.pdf
+    python scripts/turtle_analysis.py --code 600887 --resume
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -20,6 +25,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import tushare as ts
 
@@ -27,6 +33,21 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from config import get_token, get_api_url, validate_stock_code, check_local_pdf
+
+try:
+    from config_loader import get_config, get_output_dir as get_config_output_dir
+    from task_status import (
+        TaskStatusManager,
+        SubtaskStatus,
+        create_status_manager,
+        load_status_manager,
+        SUBTASK_DEFINITIONS,
+    )
+    from pdf_parallel_extractor import ParallelPDFExtractor
+    _new_modules_available = True
+except ImportError as e:
+    print(f"[WARN] New modules not available: {e}")
+    _new_modules_available = False
 
 REPORT_PERIODS = {
     "年报": "年报",
@@ -41,14 +62,7 @@ PERIOD_ORDER = ["年报", "半年报", "一季报", "三季度报"]
 
 
 def parse_report_period(period_str: str) -> str:
-    """Normalize report period string.
-    
-    Args:
-        period_str: Raw period string (e.g., '年报', '一季度报', '一季报')
-    
-    Returns:
-        Normalized period name (e.g., '年报', '一季报')
-    """
+    """Normalize report period string."""
     period_str = period_str.strip()
     for key, value in REPORT_PERIODS.items():
         if key in period_str:
@@ -57,14 +71,7 @@ def parse_report_period(period_str: str) -> str:
 
 
 def infer_report_period_from_filename(filename: str) -> tuple[int, str]:
-    """Extract year and period from PDF filename.
-    
-    Args:
-        filename: PDF filename (e.g., '云天化2025年年度报告.pdf')
-    
-    Returns:
-        (year, period) tuple, e.g., (2025, '年报')
-    """
+    """Extract year and period from PDF filename."""
     year_match = re.search(r'20\d{2}', filename)
     year = int(year_match.group()) if year_match else datetime.now().year - 1
     
@@ -83,14 +90,7 @@ def infer_report_period_from_filename(filename: str) -> tuple[int, str]:
 
 
 def get_company_name(ts_code: str) -> str:
-    """Fetch company name from Tushare stock_basic API.
-    
-    Args:
-        ts_code: Stock code (e.g., '600096.SH', '00700.HK')
-    
-    Returns:
-        Company name string, or empty string if not found
-    """
+    """Fetch company name from Tushare stock_basic API."""
     try:
         token = get_token()
         api_url = get_api_url()
@@ -116,22 +116,7 @@ def get_company_name(ts_code: str) -> str:
 def copy_local_pdf(local_path: str, output_dir: Path, ts_code: str, 
                    company_name: str = None, year: int = None, 
                    period: str = "年报") -> tuple[bool, str, int, str]:
-    """Copy local PDF file to output directory with standardized naming.
-    
-    Naming convention: {代码}_{年份}_{公司名}_{报告期}.pdf
-    Example: 600989_2024_宝丰能源_年报.pdf
-    
-    Args:
-        local_path: Path to local PDF file
-        output_dir: Output directory to copy to
-        ts_code: Stock code for naming
-        company_name: Company name (optional)
-        year: Year for naming (default: inferred from filename)
-        period: Report period (default: inferred from filename)
-    
-    Returns:
-        (success, new_path or error_message, year, period)
-    """
+    """Copy local PDF file to output directory with standardized naming."""
     filename = os.path.basename(local_path)
     
     if year is None or period == "年报":
@@ -162,14 +147,12 @@ def copy_local_pdf(local_path: str, output_dir: Path, ts_code: str,
         return False, f"复制 PDF 文件失败: {e}", year, period
 
 
-def run_phase1a(ts_code: str, output_file: Path, pdf_json_path: Path = None) -> tuple[bool, str]:
-    """Run Tushare data collection (Phase 1A).
+def run_phase1a(ts_code: str, output_file: Path, pdf_json_path: Path = None,
+                status_manager: Optional['TaskStatusManager'] = None) -> tuple[bool, str]:
+    """Run Tushare data collection (Phase 1A)."""
     
-    Args:
-        ts_code: Stock code
-        output_file: Output markdown file path
-        pdf_json_path: Optional path to pdf_sections.json for validation
-    """
+    if status_manager:
+        status_manager.start_subtask("tushare_collect", metadata={"ts_code": ts_code})
     
     cmd = [
         sys.executable,
@@ -193,16 +176,64 @@ def run_phase1a(ts_code: str, output_file: Path, pdf_json_path: Path = None) -> 
     try:
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=False)
         if result.returncode == 0:
+            if status_manager:
+                status_manager.complete_subtask("tushare_collect", output_file=str(output_file))
             return True, str(output_file)
         else:
-            return False, f"tushare_collector.py exited with code {result.returncode}"
+            error_msg = f"tushare_collector.py exited with code {result.returncode}"
+            if status_manager:
+                status_manager.fail_subtask("tushare_collect", error_msg)
+            return False, error_msg
     except Exception as e:
+        if status_manager:
+            status_manager.fail_subtask("tushare_collect", str(e))
         return False, str(e)
 
 
-def run_phase2a(pdf_path: str, output_dir: Path) -> tuple[bool, str]:
-    """Run PDF preprocessing (Phase 2A)."""
+def run_phase2a(pdf_path: str, output_dir: Path, 
+                status_manager: Optional['TaskStatusManager'] = None,
+                use_parallel: bool = True,
+                max_workers: int = 4) -> tuple[bool, str]:
+    """Run PDF preprocessing (Phase 2A) with optional parallel extraction."""
+    
+    if status_manager:
+        status_manager.start_subtask("pdf_extract", metadata={"pdf_path": pdf_path})
+    
     output_file = output_dir / "pdf_sections.json"
+    
+    if use_parallel and _new_modules_available:
+        print(f"\n{'='*60}")
+        print(f"[Phase 2A] PDF 预处理 (并行模式, {max_workers} workers)")
+        print(f"{'='*60}")
+        print(f"PDF 文件: {pdf_path}")
+        print(f"输出文件: {output_file}")
+        print()
+        
+        try:
+            extractor = ParallelPDFExtractor(max_workers=max_workers)
+            result = extractor.extract(pdf_path, output_dir)
+            
+            if "error" in result:
+                if status_manager:
+                    status_manager.fail_subtask("pdf_extract", result["error"])
+                return False, result["error"]
+            
+            summary = extractor.get_extraction_summary(result)
+            print(f"\n  提取完成: {summary['found_sections']}/{summary['total_sections']} 章节")
+            print(f"  耗时: {summary['total_duration_sec']:.1f}s")
+            
+            if status_manager:
+                status_manager.complete_subtask(
+                    "pdf_extract", 
+                    output_file=str(output_file),
+                    metadata={"sections_found": summary['found_sections']}
+                )
+            return True, str(output_file)
+        
+        except Exception as e:
+            if status_manager:
+                status_manager.fail_subtask("pdf_extract", str(e))
+            return False, str(e)
     
     cmd = [
         sys.executable,
@@ -221,23 +252,23 @@ def run_phase2a(pdf_path: str, output_dir: Path) -> tuple[bool, str]:
     try:
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=False)
         if result.returncode == 0:
+            if status_manager:
+                status_manager.complete_subtask("pdf_extract", output_file=str(output_file))
             return True, str(output_file)
         else:
-            return False, f"pdf_preprocessor.py exited with code {result.returncode}"
+            error_msg = f"pdf_preprocessor.py exited with code {result.returncode}"
+            if status_manager:
+                status_manager.fail_subtask("pdf_extract", error_msg)
+            return False, error_msg
     except Exception as e:
+        if status_manager:
+            status_manager.fail_subtask("pdf_extract", str(e))
         return False, str(e)
 
 
 def find_existing_output_dir(ts_code: str, company_name: str = None, 
-                             year: int = None, period: str = None) -> Path:
-    """Find existing output directory for the given stock and report period.
-    
-    Directory structure:
-    output/{代码}_{公司}/{年份}_{报告期}/
-    Example: output/600989SH_宝丰能源/2024_年报/
-    
-    Returns the first existing directory matching the criteria, or None if not found.
-    """
+                             year: int = None, period: str = None) -> Optional[Path]:
+    """Find existing output directory for the given stock and report period."""
     code = ts_code.replace(".", "")
     output_root = PROJECT_ROOT / "output"
     
@@ -248,29 +279,13 @@ def find_existing_output_dir(ts_code: str, company_name: str = None,
         if period_dir.exists() and period_dir.is_dir():
             return period_dir
     
-    company_dir = output_root / company_dir_name
-    if company_dir.exists() and company_dir.is_dir():
-        return None
-    
     return None
 
 
 def create_output_dir(ts_code: str, company_name: str = None, 
                       year: int = None, period: str = "年报",
                       reuse_existing: bool = True) -> Path:
-    """Create output directory for analysis results.
-    
-    Directory structure:
-    output/{代码}_{公司}/{年份}_{报告期}/
-    Example: output/600989SH_宝丰能源/2024_年报/
-    
-    Args:
-        ts_code: Stock code (e.g., '600989.SH')
-        company_name: Company name (e.g., '宝丰能源')
-        year: Report year (e.g., 2024)
-        period: Report period (e.g., '年报', '一季报')
-        reuse_existing: Whether to reuse existing directory for same period
-    """
+    """Create output directory for analysis results."""
     code = ts_code.replace(".", "")
     output_root = PROJECT_ROOT / "output"
     
@@ -293,6 +308,63 @@ def create_output_dir(ts_code: str, company_name: str = None,
         return company_dir
 
 
+def check_existing_data(output_dir: Path) -> dict:
+    """Check existing data files in output directory."""
+    checks = {
+        "data_pack_market.md": (output_dir / "data_pack_market.md").exists(),
+        "pdf_sections.json": (output_dir / "pdf_sections.json").exists(),
+        "web_search_result.md": (output_dir / "web_search_result.md").exists(),
+        "analysis_status.json": (output_dir / "analysis_status.json").exists(),
+    }
+    
+    completeness = sum(checks.values()) / len(checks) * 100
+    
+    return {
+        "files": checks,
+        "completeness": completeness,
+        "has_all_data": all(checks.values()),
+    }
+
+
+def print_progress(status_manager: 'TaskStatusManager') -> None:
+    """Print current task progress."""
+    if not status_manager or not status_manager.checkpoint:
+        return
+    
+    progress = status_manager.get_progress()
+    
+    print(f"\n{'='*50}")
+    print(f"📊 任务进度: {progress['task_id']}")
+    print(f"{'='*50}")
+    print(f"状态: {progress['status']}")
+    print(f"进度: {progress['completed']}/{progress['total']} ({progress['percentage']}%)")
+    print()
+    
+    for subtask_id, subtask in status_manager.checkpoint.subtasks.items():
+        definition = SUBTASK_DEFINITIONS.get(subtask_id, {})
+        display_name = definition.get("display_name", subtask_id)
+        
+        status_icons = {
+            SubtaskStatus.PENDING: "⏳",
+            SubtaskStatus.RUNNING: "🔄",
+            SubtaskStatus.COMPLETED: "✅",
+            SubtaskStatus.FAILED: "❌",
+            SubtaskStatus.SKIPPED: "⏭️",
+        }
+        icon = status_icons.get(subtask.status, "❓")
+        
+        duration_str = ""
+        if subtask.duration_sec:
+            duration_str = f" ({subtask.duration_sec:.1f}s)"
+        
+        print(f"  {icon} {display_name}{duration_str}")
+        
+        if subtask.error_message:
+            print(f"      错误: {subtask.error_message}")
+    
+    print(f"{'='*50}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Turtle Investment Framework - Data Collection Pipeline",
@@ -307,6 +379,12 @@ Examples:
   
   # Specify year for PDF
   python scripts/turtle_analysis.py --code 600887 --pdf report.pdf --year 2023
+  
+  # Resume from checkpoint
+  python scripts/turtle_analysis.py --code 600887 --resume
+  
+  # Use parallel PDF extraction
+  python scripts/turtle_analysis.py --code 600887 --pdf report.pdf --parallel --workers 4
         """
     )
     parser.add_argument(
@@ -345,10 +423,45 @@ Examples:
         action="store_true",
         help="Skip Phase 1A if data_pack_market.md already exists"
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        default=True,
+        help="Use parallel PDF extraction (default: True)"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel workers for PDF extraction (default: 4)"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from checkpoint if available"
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show status of existing analysis"
+    )
     
     args = parser.parse_args()
     
     ts_code = validate_stock_code(args.code)
+    
+    if args.status:
+        output_dir = find_existing_output_dir(ts_code, args.company, args.year, args.period)
+        if output_dir:
+            status_manager = load_status_manager(output_dir)
+            if status_manager:
+                print_progress(status_manager)
+            else:
+                print(f"未找到分析状态文件: {output_dir}")
+        else:
+            print(f"未找到输出目录")
+        return
+    
     print(f"\n🐢 龟龟投资策略分析 - 数据采集")
     print(f"   股票代码: {ts_code}")
     print(f"   持股渠道: {args.channel}")
@@ -380,8 +493,29 @@ Examples:
     print(f"   报告期: {report_year}年{report_period}")
     
     output_dir = create_output_dir(ts_code, company_name, report_year, report_period)
-    
     print(f"   输出目录: {output_dir}")
+    
+    status_manager = None
+    if _new_modules_available:
+        if args.resume:
+            existing_manager = load_status_manager(output_dir)
+            if existing_manager and existing_manager.can_resume():
+                status_manager = existing_manager
+                print(f"\n  [INFO] 从检查点恢复: {status_manager.checkpoint.task_id}")
+                print_progress(status_manager)
+            else:
+                status_manager = create_status_manager(
+                    output_dir, ts_code, company_name, report_year, report_period, args.channel
+                )
+        else:
+            status_manager = create_status_manager(
+                output_dir, ts_code, company_name, report_year, report_period, args.channel
+            )
+    
+    existing_data = check_existing_data(output_dir)
+    if existing_data["completeness"] >= 90 and not args.resume:
+        print(f"\n  [INFO] 检测到现有数据 (完整度: {existing_data['completeness']:.0f}%)")
+        print(f"  [INFO] 使用 --resume 参数可从检查点恢复")
     
     results = {
         "ts_code": ts_code,
@@ -395,7 +529,17 @@ Examples:
     has_pdf = False
     pdf_path = None
     
-    if args.pdf:
+    pdf_extract_status = status_manager.get_subtask_status("pdf_extract") if status_manager else None
+    if pdf_extract_status == SubtaskStatus.COMPLETED:
+        print(f"\n  [INFO] PDF提取已完成，跳过")
+        has_pdf = True
+        pdf_path = str(output_dir / f"{ts_code.split('.')[0]}_{report_year}_{company_name}_{report_period}.pdf")
+        if not os.path.exists(pdf_path):
+            pdf_files = list(output_dir.glob("*.pdf"))
+            if pdf_files:
+                pdf_path = str(pdf_files[0])
+    
+    if args.pdf and pdf_extract_status != SubtaskStatus.COMPLETED:
         print(f"\n{'='*60}")
         print(f"[Phase 0] 本地 PDF 文件处理")
         print(f"{'='*60}")
@@ -417,28 +561,41 @@ Examples:
                 results["period"] = report_period
         else:
             print(f"\n⚠️ 本地 PDF 处理失败: {msg}")
+            if status_manager:
+                status_manager.skip_subtask("pdf_extract", msg)
     
     code = ts_code.replace(".", "")
     market_data_filename = "data_pack_market.md"
     market_data_path = output_dir / market_data_filename
     pdf_json_path = output_dir / "pdf_sections.json"
     
-    if has_pdf and pdf_path:
-        success, msg = run_phase2a(pdf_path, output_dir)
+    if has_pdf and pdf_path and pdf_extract_status != SubtaskStatus.COMPLETED:
+        success, msg = run_phase2a(
+            pdf_path, output_dir, status_manager, 
+            use_parallel=args.parallel, 
+            max_workers=args.workers
+        )
         results["phases"]["phase2a"] = {"success": success, "output": msg}
         if not success:
             print(f"\n⚠️ Phase 2A 失败: {msg}")
             has_pdf = False
     
-    if not args.skip_phase1a:
+    tushare_status = status_manager.get_subtask_status("tushare_collect") if status_manager else None
+    if tushare_status == SubtaskStatus.COMPLETED:
+        print(f"\n  [INFO] Tushare采集已完成，跳过")
+    elif not args.skip_phase1a:
         pdf_validation_path = pdf_json_path if (has_pdf and pdf_json_path.exists()) else None
-        success, msg = run_phase1a(ts_code, market_data_path, pdf_validation_path)
+        success, msg = run_phase1a(ts_code, market_data_path, pdf_validation_path, status_manager)
         results["phases"]["phase1a"] = {"success": success, "output": msg}
         if not success:
             print(f"\n❌ Phase 1A 失败: {msg}")
             sys.exit(1)
     else:
         print(f"\n⏭️ 跳过 Phase 1A（使用现有数据）")
+    
+    if status_manager:
+        status_manager.save_checkpoint()
+        print_progress(status_manager)
     
     results_file = output_dir / "analysis_status.json"
     with open(results_file, "w", encoding="utf-8") as f:
