@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+.agents/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project runtime outputs
+output/*
+!output/.gitkeep
+
+# Sensitive
+.env
+*.token
+
+# PDF files (annual reports, too large for git)
+*.pdf
+
+# Tushare cache
+tushare_data/
+
+# Project
+claude-progress.txt
+CLAUDE.md
+feature_list.json
