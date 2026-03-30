@@ -282,17 +282,26 @@ prompts/websearch_guidelines.md ← 包含所有网络搜索规范
 
 ## Phase 0：数据采集阶段
 
+### ⚠️ 重要：统一执行规范
+
+**必须使用 `turtle_analysis.py` 统一执行 Phase 0，禁止手动分步执行子脚本！**
+
+**原因**：
+1. `turtle_analysis.py` 会自动复制PDF到输出目录并规范命名
+2. `turtle_analysis.py` 会同时执行PDF提取和Tushare采集
+3. `turtle_analysis.py` 支持断点续传和状态管理
+
 ### 执行逻辑
 
 **Phase 0 和 Phase 1 并行执行**：
 
 **并行任务清单**：
 
-| 任务        | 输入                 | 输出      | 说明                     | <br />       |
-| --------- | ------------------ | ------- | ---------------------- | :----------- |
-| <br />    | Phase 0-A: PDF年报提取 | PDF文件路径 | `pdf_sections.json`    | 提取A股年报标准章节   |
-| Phase 0-B | Tushare财务数据采集      | 股票代码    | `data_pack_market.md`  | 采集财务数据、 API  |
-| Phase 1   | 网络搜索               | 公司名/行业名 | `web_search_result.md` | 搜索行业/公司/竞争信息 |
+| 任务        | 输入                 | 输出      | 说明                     |
+| --------- | ------------------ | ------- | ---------------------- |
+| Phase 0-A: PDF年报提取 | PDF文件路径 | `pdf_sections.json` + 原始PDF复制 | 提取A股年报标准章节，复制原始PDF到输出目录 |
+| Phase 0-B: Tushare财务数据采集 | 股票代码 | `data_pack_market.md` | 采集财务数据 |
+| Phase 1   | 网络搜索 | 公司名/行业名 | `web_search_result.md` | 搜索行业/公司/竞争信息 |
 
 **等待机制**：
 
@@ -300,7 +309,28 @@ prompts/websearch_guidelines.md ← 包含所有网络搜索规范
 - 若任一任务失败，记录错误但继续执行其他任务
 - 最终报告生成时，标注缺失的数据项
 
-#### 任务A：PDF年报提取
+### 统一执行命令（必须执行）
+
+**⚠️ 以下命令必须执行，禁止跳过！**
+
+```bash
+# 一键执行 Phase 0（PDF复制 + PDF提取 + Tushare采集）
+python scripts/turtle_analysis.py --code {code} --pdf {PDF路径} --parallel --workers 4
+```
+
+**示例**：
+```bash
+# 宏桥控股分析
+python scripts/turtle_analysis.py --code 002379.SZ --pdf "D:\book\财报\宏桥控股\宏桥控股：2025年年度报告.pdf" --parallel --workers 4
+```
+
+**输出文件**：
+- `{code}_{year}_{公司名}_年报.pdf`：原始PDF文件（自动复制并规范命名）
+- `pdf_sections.json`：章节文本提取结果
+- `pdf_sections.md`：可读版本（可选）
+- `data_pack_market.md`：财务数据包
+
+### PDF提取规范（必须遵循）
 
 **⚠️ 严格按照 `prompts/pdf_parser.md` 规范执行PDF提取**
 
@@ -314,47 +344,36 @@ prompts/websearch_guidelines.md ← 包含所有网络搜索规范
 2. 执行脚本提取章节文本
 3. 输出 `pdf_sections.json` 和 `data_pack_report.md`
 
-**执行脚本**（按优先级选择）：
-
-```bash
-# 方式1：一键执行（推荐）
-python scripts/turtle_analysis.py --code {code} --pdf {PDF路径} --parallel --workers 4
-
-# 方式2：多进程并行提取
-python scripts/pdf_parallel_extractor.py --pdf {PDF路径} --output {output_dir}/{year}_{period} --workers 4
-
-# 方式3：基础提取（兼容模式）
-python scripts/pdf_preprocessor.py --pdf {PDF路径} --output {output_dir}/{year}_{period}
-```
-
-**输出文件**：
-- `pdf_sections.json`：章节文本提取结果
-- `pdf_sections.md`：可读版本（可选）
-- `data_pack_report.md`：精提取结构化数据
-
 **校验要求**：
 - 关键章节（BIZ, MDA_INDUSTRY, MDA_OPERATION）不能为空
 - 精提取数据至少包含3项（P3, P5, P13）
 
-#### 任务B：Tushare财务数据采集
+### Phase 0 输出校验（必须执行）
 
-**输入**：
+**校验步骤**：
+1. 检查原始PDF是否已复制到输出目录
+2. 检查 `pdf_sections.json` 是否存在
+3. 检查 `data_pack_market.md` 是否存在
 
-- 股票代码：`{code}`
-
-**执行脚本**：
-
+**校验命令**：
 ```bash
-# 方式1：使用 turtle_analysis.py 一键执行（推荐，会同时执行PDF提取）
-python scripts/turtle_analysis.py --code {code}
-
-# 方式2：单独调用 Tushare 采集
-python scripts/tushare_collector.py --code {code} --output {output_dir}/{year}_{period}
+# 查看输出目录文件列表
+ls {output_dir}
 ```
 
-**输出**：
+**校验项**：
 
-- `data_pack_market.md`：财务数据包
+| 文件 | 必需 | 校验规则 |
+|------|------|---------|
+| `{code}_{year}_{公司名}_年报.pdf` | ✅ 必需 | 原始PDF必须复制到输出目录 |
+| `data_pack_market.md` | ✅ 必需 | 至少包含 §1, §3, §4, §5, §9, §12 章节 |
+| `pdf_sections.json` | ✅ 必需 | 关键章节 BIZ, MDA_INDUSTRY, MDA_OPERATION 不能为空 |
+
+**校验结果处理**：
+
+- ✅ 完整：进入 Phase 1
+- ⚠️ 部分缺失：补充执行缺失的任务
+- ❌ 严重缺失：提示用户检查数据源
 
 **数据包章节清单**：
 
@@ -366,21 +385,6 @@ python scripts/tushare_collector.py --code {code} --output {output_dir}/{year}_{
 | §5   | 现金流量表   | 经营/投资/筹资现金流     |
 | §9   | 主营业务构成  | 分产品营收/毛利        |
 | §12  | 关键财务指标  | ROE、毛利率、周转率     |
-
-### Phase 0 输出校验
-
-**校验项**：
-
-| 文件                    | 必需章节                               | 校验规则      |
-| --------------------- | ---------------------------------- | --------- |
-| data\_pack\_market.md | §1, §3, §4, §5, §9, §12            | 至少包含近3年数据 |
-| pdf\_sections.json    | BIZ, MDA\_INDUSTRY, MDA\_OPERATION | 关键章节不能为空  |
-
-**校验结果处理**：
-
-- ✅ 完整：进入 Phase 1
-- ⚠️ 部分缺失：标注缺失项，继续执行
-- ❌ 严重缺失：提示用户检查数据源
 
 ***
 
@@ -408,6 +412,7 @@ python scripts/tushare_collector.py --code {code} --output {output_dir}/{year}_{
 | 2.1 | 审计意见核查 | `"{公司名} 审计机构 审计意见 {最新年份}年报"` | 审计意见类型、审计机构、连续审计年限 |
 | 2.2 | 会计政策一致性核查 | `"{公司名} 会计政策变更 交易所公告 {最新年份}"` | 会计政策变更、变更影响、行业对标 |
 | 2.3 | 异常数据初筛 | `"{细分赛道名} 同市值规模 营收增速 毛利率 平均水平 {最新年份}"` | 大存大贷、盈利质量、关联交易异常 |
+| 2.5 | 管理层治理能力与治理风险 | `"{公司名} 证监会 行政处罚 问询函 {最新3年}"` | 监管处罚、管理层稳定性、内控有效性、关联交易合规 |
 
 #### 第二优先级（根据行业类型选择）
 

@@ -363,6 +363,111 @@ pdf_sections:
       buffer_pages: 2
       max_chars: 5000
 
+  # --- 第四部分：管理层治理能力与治理风险校验 ---
+  MGT_INFO:
+    name: "董监高基本情况"
+    location: "第七节 董事、监事、高级管理人员和员工情况"
+    purpose: "管理层稳定性、专业度"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["董事", "监事", "高级管理人员", "董事长", "总经理", "财务总监", "董秘", "任职期限", "从业经历", "学历", "年龄"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["董事", "监事", "高级管理人员", "任职期限"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 10000
+
+  MGT_SHARE:
+    name: "董监高持股情况"
+    location: "第七节 董监高持股情况"
+    purpose: "管理层利益绑定"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["持股数量", "持股比例", "质押数量", "质押比例", "年度增减变动", "董监高持股"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["持股数量", "持股比例", "质押比例"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  MGT_COMP:
+    name: "董监高报酬情况"
+    location: "第七节 董监高报酬情况"
+    purpose: "薪酬与业绩匹配"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["报酬", "薪酬", "工资", "奖金", "津贴", "股权激励", "绩效薪酬"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["报酬", "薪酬", "股权激励"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  MGT_CHANGE:
+    name: "董监高变动情况"
+    location: "第七节 董监高变动情况"
+    purpose: "管理层稳定性"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["离任", "新任", "换届", "调任", "辞职", "任命", "变动原因"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["离任", "新任", "变动原因"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 5000
+
+  GOV_STRUCT:
+    name: "公司治理结构"
+    location: "第八节 公司治理"
+    purpose: "三会运作、内控有效性"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["股东大会", "董事会", "监事会", "独立董事", "专门委员会", "三会运作", "治理结构"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["股东大会", "董事会", "监事会", "独立董事"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  INTERNAL_CTRL:
+    name: "内部控制"
+    location: "第九节 内部控制"
+    purpose: "内控缺陷识别"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["内部控制评价报告", "内控缺陷", "重大缺陷", "重要缺陷", "一般缺陷", "整改", "内控审计意见"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["内部控制评价报告", "内控缺陷", "内控审计意见"]
+    extract_config:
+      buffer_pages: 3
+      max_chars: 8000
+
+  SHAREHOLDER:
+    name: "股东情况"
+    location: "第五节 普通股股份变动及股东情况"
+    purpose: "股权结构、质押情况"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["股东名称", "持股比例", "质押比例", "实际控制人", "控股股东", "前十大股东", "股权结构"]
+      exclude: ["主营业务", "财务报表", "行业分析"]
+      mandatory: ["股东名称", "持股比例", "实际控制人", "质押比例"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
+  STRATEGY_OUTLOOK:
+    name: "战略规划与经营目标"
+    location: "第三节 管理层讨论与分析→公司未来发展的展望"
+    purpose: "战略执行能力"
+    report_section: "§2.4 管理层治理"
+    keywords:
+      include: ["发展战略", "经营目标", "年度计划", "完成情况", "战略规划", "未来展望", "经营计划"]
+      exclude: ["主营业务明细", "财务报表", "风险因素"]
+      mandatory: ["发展战略", "经营目标", "完成情况"]
+    extract_config:
+      buffer_pages: 2
+      max_chars: 6000
+
 # ============================
 # 二、网络搜索项配置
 # ============================
@@ -480,6 +585,68 @@ search_items:
         name: "关联交易异常"
         template: "{公司名} 关联交易 占比 公允性 {最新年份}"
         output: "异常数据初筛"
+
+  tier1_management_governance:
+    priority: 1
+    name: "管理层治理能力与治理风险校验"
+    report_section: "§2.4 管理层治理"
+    items:
+      - id: "M1"
+        name: "监管处罚记录"
+        template: "{公司名} 证监会 行政处罚 决定书 {最新3年}"
+        output: "合规风险"
+      - id: "M2"
+        name: "交易所监管问询"
+        template: "{公司名} {交易所名} 监管问询函 监管警示函 {最新3年}"
+        output: "合规风险"
+      - id: "M3"
+        name: "董监高立案调查"
+        template: "{公司名} 董监高 立案调查 证监会 {最新3年}"
+        output: "诚信风险"
+      - id: "M4"
+        name: "违规担保资金占用"
+        template: "{公司名} 违规担保 关联交易 资金占用 {最新年份}"
+        output: "治理风险"
+      - id: "M5"
+        name: "管理层负面舆情"
+        template: "{公司名} 管理层 负面 舆情 {最新年份}"
+        output: "舆情风险"
+      - id: "M6"
+        name: "实控人风险"
+        template: "{公司名} 实控人 风险 诉讼 {最新年份}"
+        output: "治理风险"
+      - id: "M7"
+        name: "财务造假质疑"
+        template: "{公司名} 财务造假 质疑 {最新年份}"
+        output: "诚信风险"
+      - id: "M8"
+        name: "业绩变脸"
+        template: "{公司名} 业绩变脸 修正 {最新年份}"
+        output: "诚信风险"
+      - id: "M9"
+        name: "管理层行业口碑"
+        template: "{公司名} 管理层 行业评价 口碑 {最新年份}"
+        output: "管理层评价"
+      - id: "M10"
+        name: "战略规划评价"
+        template: "{公司名} 战略规划 券商研报 评价 {最新年份}"
+        output: "战略执行"
+      - id: "M11"
+        name: "历史业绩承诺"
+        template: "{公司名} 历史 业绩承诺 完成情况 {最新3年}"
+        output: "诚信记录"
+      - id: "M12"
+        name: "股权激励行权"
+        template: "{公司名} 历史 股权激励 行权情况 {最新3年}"
+        output: "激励有效性"
+      - id: "M13"
+        name: "高管减持质押"
+        template: "{公司名} 高管减持 质押 {最新年份}"
+        output: "利益绑定"
+      - id: "M14"
+        name: "同业治理对标"
+        template: "{细分赛道名} 上市公司 治理评级 排名 {最新年份}"
+        output: "治理对标"
 
   # --- 第二优先级（选择性执行）---
   tier2_industry_deep:
@@ -685,6 +852,9 @@ report_sections:
       - id: "2.3"
         name: "异常数据初筛"
         data_sources: ["data_pack§3-§5", "web_search[2.8-2.10]"]
+      - id: "2.4"
+        name: "管理层治理能力与治理风险校验"
+        data_sources: ["pdf_sections[MGT_INFO/MGT_SHARE/MGT_COMP/MGT_CHANGE/GOV_STRUCT/INTERNAL_CTRL/SHAREHOLDER/STRATEGY_OUTLOOK]", "web_search[M1-M14]"]
 
   - id: "part2"
     name: "核心财务三维度深度分析"

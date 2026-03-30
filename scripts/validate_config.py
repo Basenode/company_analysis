@@ -78,34 +78,60 @@ class ConfigValidator:
             result.is_valid = False
             return result
         
-        with open(self.pdf_config_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        
         config_sections = self.get_pdf_sections_from_config()
         
-        pattern = r'"([A-Z_0-9]+)":\s*\{'
-        found_sections = set(re.findall(pattern, content))
-        
-        found_sections = {s for s in found_sections if not s.startswith("ZONE") and not s.startswith("SECTION") and not s.startswith("AR_EXCLUDE") and not s.startswith("OUTPUT") and not s.startswith("DEFAULT") and not s.startswith("GARBLED") and not s.startswith("EXTRACT")}
-        
-        for section in config_sections:
-            if section not in found_sections:
-                result.missing_items.append(f"pdf_config.py 缺少章节: {section}")
-                result.is_valid = False
-        
-        for section in found_sections:
-            if section not in config_sections:
-                result.extra_items.append(f"pdf_config.py 多余章节: {section}")
-                result.warnings.append(f"pdf_config.py 中 {section} 不在统一配置中")
-        
-        if result.is_valid:
-            print(f"  ✅ pdf_config.py 校验通过 ({len(config_sections)} 个章节)")
-        else:
-            print(f"  ❌ pdf_config.py 校验失败")
-            for err in result.missing_items:
-                print(f"     - {err}")
-        
-        return result
+        # 方式1：尝试动态加载配置（支持从YAML动态加载的新版本）
+        try:
+            from pdf_config import SECTION_KEYWORDS, SECTION_EXTRACT_CONFIG
+            found_sections = set(SECTION_KEYWORDS.keys())
+            
+            for section in config_sections:
+                if section not in found_sections:
+                    result.missing_items.append(f"pdf_config.py 缺少章节: {section}")
+                    result.is_valid = False
+            
+            for section in found_sections:
+                if section not in config_sections:
+                    result.extra_items.append(f"pdf_config.py 多余章节: {section}")
+                    result.warnings.append(f"pdf_config.py 中 {section} 不在统一配置中")
+            
+            if result.is_valid:
+                print(f"  ✅ pdf_config.py 校验通过 ({len(config_sections)} 个章节，动态加载)")
+            else:
+                print(f"  ❌ pdf_config.py 校验失败")
+                for err in result.missing_items:
+                    print(f"     - {err}")
+            
+            return result
+            
+        except ImportError:
+            # 方式2：回退到正则表达式检测（兼容旧版本）
+            with open(self.pdf_config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            pattern = r'"([A-Z_0-9]+)":\s*\{'
+            found_sections = set(re.findall(pattern, content))
+            
+            found_sections = {s for s in found_sections if not s.startswith("ZONE") and not s.startswith("SECTION") and not s.startswith("AR_EXCLUDE") and not s.startswith("OUTPUT") and not s.startswith("DEFAULT") and not s.startswith("GARBLED") and not s.startswith("EXTRACT")}
+            
+            for section in config_sections:
+                if section not in found_sections:
+                    result.missing_items.append(f"pdf_config.py 缺少章节: {section}")
+                    result.is_valid = False
+            
+            for section in found_sections:
+                if section not in config_sections:
+                    result.extra_items.append(f"pdf_config.py 多余章节: {section}")
+                    result.warnings.append(f"pdf_config.py 中 {section} 不在统一配置中")
+            
+            if result.is_valid:
+                print(f"  ✅ pdf_config.py 校验通过 ({len(config_sections)} 个章节)")
+            else:
+                print(f"  ❌ pdf_config.py 校验失败")
+                for err in result.missing_items:
+                    print(f"     - {err}")
+            
+            return result
     
     def validate_coordinator(self) -> ValidationResult:
         result = ValidationResult(is_valid=True)
